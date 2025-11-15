@@ -42,3 +42,17 @@ yarn-error.*
 
 # Supabase config (contains sensitive credentials)
 config/supabase.js
+
+
+# Mac generated files
+.DS_Store
+
+# Windows generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux generated files
+.directory
+.DS_Store
+.Thumbs.db
