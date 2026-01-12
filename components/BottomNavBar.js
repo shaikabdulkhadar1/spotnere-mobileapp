@@ -57,10 +57,17 @@ const BottomNavBar = ({ activeTab, onTabChange }) => {
     });
   }, [activeTab]);
 
+  // Use BlurView on iOS, regular View on Android (to avoid software rendering crash)
+  const BlurContainer = Platform.OS === "ios" ? BlurView : View;
+  const blurProps =
+    Platform.OS === "ios"
+      ? { intensity: 80 } // Reduced intensity for transparency, no tint to keep original color
+      : {};
+
   return (
     <View style={styles.navBarContainer}>
       <View style={styles.navBar}>
-        <BlurView intensity={100} tint="light" style={styles.blurView}>
+        <BlurContainer {...blurProps} style={styles.blurView}>
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             const indicator = getIndicator(tab.id);
@@ -134,7 +141,7 @@ const BottomNavBar = ({ activeTab, onTabChange }) => {
               </TouchableOpacity>
             );
           })}
-        </BlurView>
+        </BlurContainer>
       </View>
     </View>
   );
@@ -154,9 +161,9 @@ const styles = StyleSheet.create({
     height: 70,
     borderRadius: 35, // Half of height for fully rounded pill shape
     overflow: "hidden", // Required for borderRadius to work
-    backgroundColor: colors.primary,
+    backgroundColor: "transparent", // Transparent background
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.5)",
+    borderColor: "rgba(255, 255, 255, 0.2)", // More transparent border
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -175,6 +182,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 35,
     overflow: "hidden",
+    // Semi-transparent background to maintain original color (colors.primary: #223843)
+    backgroundColor: "rgba(34, 56, 67, 0.7)", // Same color as before but transparent
   },
   navItem: {
     flex: 1,
@@ -216,4 +225,3 @@ const styles = StyleSheet.create({
 });
 
 export default BottomNavBar;
-

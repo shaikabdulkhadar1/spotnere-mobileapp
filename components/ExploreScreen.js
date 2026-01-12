@@ -14,6 +14,7 @@ import { supabase } from "../config/supabase";
 import PlaceCard from "./PlaceCard";
 import SkeletonCard from "./SkeletonCard";
 import { colors } from "../constants/colors";
+import { getCachedPlaces, setCachedPlaces } from "../utils/placesCache";
 
 const { width } = Dimensions.get("window");
 
@@ -98,6 +99,31 @@ const ExploreScreen = ({ userCountry, onPlacePress }) => {
     try {
       setExploreLoading(true);
 
+      // Check cache first
+      const cachedPlaces = getCachedPlaces(userCountry);
+      if (cachedPlaces) {
+        console.log("📦 Using cached places for explore, skipping API call");
+        // Format cached data for explore screen
+        const formatted = cachedPlaces.map((place, index) => ({
+          id: place.id,
+          title: place.title || place.name || place.place_name || "Place",
+          price: `$${place.avg_price || 0} per person`,
+          avgPrice: place.avg_price || 0, // Keep numeric price for filtering
+          rating: parseFloat(place.rating || place.average_rating || 0),
+          ratingString:
+            place.rating?.toString() || place.average_rating?.toString() || "0",
+          imageUri: place.banner_image_link || place.image || place.photo_url,
+          propertyType: place.property_type || place.type || "", // For property type filter
+          showBadge: index < 3, // Show badge on first 3 cards
+          isSmall: false,
+        }));
+
+        setAllPlaces(formatted);
+        setExplorePlaces(formatted); // Initially show all places
+        setExploreLoading(false);
+        return;
+      }
+
       // Fetch all places in the country for explore page
       const { data: allPlaces, error: fetchError } = await supabase
         .from("places")
@@ -111,6 +137,11 @@ const ExploreScreen = ({ userCountry, onPlacePress }) => {
       }
 
       console.log(`🔍 Explore places found:`, allPlaces?.length || 0);
+
+      // Cache the raw places data (if not already cached)
+      if (allPlaces && allPlaces.length > 0) {
+        setCachedPlaces(allPlaces, userCountry);
+      }
 
       // Format the data - keep original data for filtering
       const formatted = (allPlaces || []).map((place, index) => ({

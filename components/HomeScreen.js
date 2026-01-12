@@ -1,292 +1,298 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
-  TextInput,
-  TouchableOpacity,
+  ActivityIndicator,
   Dimensions,
-  Platform,
+  TouchableOpacity,
+  Alert,
 } from "react-native";
+import { supabase } from "../config/supabase";
 import PlaceCard from "./PlaceCard";
 import SkeletonCard from "./SkeletonCard";
 import { colors } from "../constants/colors";
 
-const { width, height } = Dimensions.get("window");
+const { width } = Dimensions.get("window");
 
-const HomeScreen = ({
-  places50km,
-  placesCity,
-  placesState,
-  placesCountry,
-  city,
-  userState,
-  userCountry,
-  onPlacePress,
-}) => {
-  // Check if places are loaded (not empty arrays)
-  const hasPlacesLoaded = (places) => {
-    return places && places.length > 0;
+const TOP_K = 20; // Top 20 places to display initially
+const LOAD_MORE_COUNT = 20; // Number of additional places to load
+
+const HomeScreen = ({ userCountry, activeCategory, onPlacePress }) => {
+  const [places, setPlaces] = useState([]);
+  const [allPlacesData, setAllPlacesData] = useState([]); // Store all fetched places
+  const [displayedCount, setDisplayedCount] = useState(TOP_K); // Number of places currently displayed
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (userCountry) {
+      fetchTopPlaces();
+    }
+  }, [userCountry, activeCategory]);
+
+  // Efficient top-K selection: Get top K items without full sorting
+  // Uses a "keep top K" algorithm - O(n * k) instead of O(n log n)
+  // where k is the number of items we need (20) and n is total items
+  const getTopK = (items, k, compareFn) => {
+    if (items.length === 0) return [];
+    if (items.length <= k) {
+      // If we need all items, just sort them
+      return [...items].sort(compareFn);
+    }
+
+    // Keep only top K items in a sorted array
+    const topK = [];
+
+    for (const item of items) {
+      if (topK.length < k) {
+        // If we haven't filled up yet, insert in sorted position
+        // Find insertion point using linear search (fast for small k)
+        let insertIndex = topK.length;
+        for (let i = 0; i < topK.length; i++) {
+          if (compareFn(item, topK[i]) < 0) {
+            insertIndex = i;
+            break;
+          }
+        }
+        topK.splice(insertIndex, 0, item);
+      } else {
+        // Compare with the worst item in our top K
+        // Worst item is always at the end of sorted array (index k-1)
+        const worstIndex = k - 1;
+
+        if (compareFn(item, topK[worstIndex]) < 0) {
+          // This item is better than worst, replace it
+          topK[worstIndex] = item;
+          // Re-sort only the small top K array (k is small, so this is fast)
+          topK.sort(compareFn);
+        }
+      }
+    }
+
+    return topK;
   };
 
-  // Ensure skeletons show for at least 3 seconds on initial load
-  const [showSkeletons, setShowSkeletons] = useState(true);
-  useEffect(() => {
-    const timer = setTimeout(() => setShowSkeletons(false), 3000);
-    return () => clearTimeout(timer);
-  }, []);
+  // Helper: Get top K by rating (descending - highest first)
+  const getTopKByRating = (items, k = TOP_K) => {
+    return getTopK(items, k, (a, b) => b.rating - a.rating);
+  };
+
+  const fetchTopPlaces = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Check if supabase is available
+      if (!supabase) {
+        throw new Error("Supabase client is not initialized");
+      }
+
+      // Fetch all places filtered by country (no pagination)
+      let query = supabase.from("places").select("*");
+
+      // Filter by country if provided
+      if (userCountry) {
+        query = query.eq("country", userCountry);
+      }
+
+      const { data: allPlaces, error: fetchError } = await query;
+
+      if (fetchError) {
+        console.error("❌ Error fetching places:", fetchError);
+        throw new Error(`Failed to fetch places: ${fetchError.message}`);
+      }
+
+      console.log(
+        `📊 Total places found${userCountry ? ` in ${userCountry}` : ""}:`,
+        allPlaces?.length || 0
+      );
+
+      if (!allPlaces || allPlaces.length === 0) {
+        console.warn("⚠️ No places found");
+        setPlaces([]);
+        setLoading(false);
+        return;
+      }
+
+      // Format places with rating and category for top-K selection
+      const placesWithRating = allPlaces.map((place) => ({
+        id: place.id,
+        title: place.title || place.name || place.place_name || "Place",
+        price: `$${place.avg_price || 0} per person`,
+        rating: parseFloat(place.rating || place.average_rating || 0) || 0,
+        ratingString:
+          place.rating?.toString() || place.average_rating?.toString() || "0",
+        imageUri: place.banner_image_link || place.image || place.photo_url,
+        category: place.category || "", // Store category for filtering
+        isSmall: false,
+      }));
+
+      // Filter by category if not "All"
+      let filteredPlaces = placesWithRating;
+      if (activeCategory && activeCategory !== "All") {
+        filteredPlaces = placesWithRating.filter((place) => {
+          const placeCategory = (place.category || "").toLowerCase();
+          const selectedCategory = activeCategory.toLowerCase();
+          return placeCategory === selectedCategory;
+        });
+        console.log(
+          `🔍 Filtered by category "${activeCategory}": ${filteredPlaces.length} places`
+        );
+      }
+
+      // Use top-K selection to get top 20 places by rating
+      const topPlaces = getTopKByRating(filteredPlaces, TOP_K);
+
+      // Store filtered places data for "Load More" functionality
+      setAllPlacesData(filteredPlaces);
+
+      // Add showBadge to first 3 places
+      const formatted = topPlaces.map((place, index) => ({
+        ...place,
+        showBadge: index < 3, // Show badge on first 3 cards
+      }));
+
+      console.log(
+        `✅ Selected top ${formatted.length} places by rating${
+          activeCategory && activeCategory !== "All"
+            ? ` (Category: ${activeCategory})`
+            : ""
+        }`
+      );
+      setPlaces(formatted);
+      setDisplayedCount(TOP_K);
+    } catch (err) {
+      console.error("Error fetching places:", err);
+      setError(err.message || "Failed to fetch places");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLoadMore = () => {
+    if (allPlacesData.length === 0 || displayedCount >= allPlacesData.length) {
+      // Show toast message when no more places
+      Alert.alert("", "No more places to load", [{ text: "OK" }]);
+      return;
+    }
+
+    // Get next batch of places (sorted by rating)
+    const sortedPlaces = [...allPlacesData].sort((a, b) => b.rating - a.rating);
+    const nextBatch = sortedPlaces.slice(
+      displayedCount,
+      displayedCount + LOAD_MORE_COUNT
+    );
+
+    // Add showBadge to first place of new batch if it's in top 3 overall
+    const formatted = nextBatch.map((place, index) => ({
+      ...place,
+      showBadge: displayedCount + index < 3, // Show badge if in top 3 overall
+    }));
+
+    setPlaces((prevPlaces) => [...prevPlaces, ...formatted]);
+    setDisplayedCount((prevCount) => prevCount + nextBatch.length);
+  };
+
+  if (loading) {
+    return (
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.allPlacesContainer}>
+          <View style={styles.gridContainer}>
+            {Array.from({ length: 6 }).map((_, index) => (
+              <View key={`skeleton-${index}`} style={styles.gridCard}>
+                <SkeletonCard />
+              </View>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>Error: {error}</Text>
+        <Text style={styles.retryText} onPress={fetchTopPlaces}>
+          Tap to retry
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
       style={styles.scrollView}
-      contentContainerStyle={[styles.scrollContent]}
+      contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
-      contentInsetAdjustmentBehavior="automatic"
     >
-      {/* Content Section - 20% of screen height (Scrollable) */}
-      <View style={styles.headerContentSection}>
-        <Text style={styles.headerGreeting}>Hello user,</Text>
-        <Text style={styles.headerSubtitle}>what's on your mind today?</Text>
-      </View>
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBarContainer}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <TextInput
-            style={styles.searchBar}
-            placeholder="Search"
-            placeholderTextColor="#999"
-          />
-        </View>
-      </View>
+      <View style={styles.allPlacesContainer}>
+        {places.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No places found</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.gridContainer}>
+              {places.map((place, index) => (
+                <View key={place.id || index} style={styles.gridCard}>
+                  <PlaceCard
+                    title={place.title}
+                    price={place.price}
+                    rating={place.ratingString}
+                    imageUri={place.imageUri}
+                    showBadge={place.showBadge}
+                    isSmall={false}
+                    placeId={place.id}
+                    onPress={onPlacePress}
+                  />
+                </View>
+              ))}
+            </View>
 
-      {/* Top places in 50km Section */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Top places in 50km</Text>
-          <TouchableOpacity>
-            <Text style={styles.seeMoreText}>See more...</Text>
-          </TouchableOpacity>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.horizontalScroll}
-          contentContainerStyle={styles.horizontalScrollContent}
-        >
-          {showSkeletons || !hasPlacesLoaded(places50km) ? (
-            Array.from({ length: 3 }).map((_, index) => (
-              <SkeletonCard key={`skeleton-50km-${index}`} />
-            ))
-          ) : places50km.length > 0 ? (
-            places50km.map((place, index) => (
-              <PlaceCard
-                key={place.id || index}
-                title={place.title}
-                price={place.price}
-                rating={place.rating}
-                imageUri={place.imageUri}
-                showBadge={place.showBadge}
-                isSmall={place.isSmall}
-                placeId={place.id}
-                onPress={onPlacePress}
-              />
-            ))
-          ) : (
-            <Text style={styles.noDataText}>No places found</Text>
-          )}
-        </ScrollView>
-      </View>
-
-      {/* Top places in city Section */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Top places in {city}</Text>
-          <TouchableOpacity>
-            <Text style={styles.seeMoreText}>See more...</Text>
-          </TouchableOpacity>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.horizontalScroll}
-          contentContainerStyle={styles.horizontalScrollContent}
-        >
-          {showSkeletons || !hasPlacesLoaded(placesCity) ? (
-            Array.from({ length: 3 }).map((_, index) => (
-              <SkeletonCard key={`skeleton-city-${index}`} />
-            ))
-          ) : placesCity.length > 0 ? (
-            placesCity.map((place, index) => (
-              <PlaceCard
-                key={place.id || index}
-                title={place.title}
-                price={place.price}
-                rating={place.rating}
-                imageUri={place.imageUri}
-                showBadge={place.showBadge}
-                isSmall={place.isSmall}
-                placeId={place.id}
-                onPress={onPlacePress}
-              />
-            ))
-          ) : (
-            <Text style={styles.noDataText}>No places found</Text>
-          )}
-        </ScrollView>
-      </View>
-
-      {/* Top places in state Section */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            Top places in {userState || "state"}
-          </Text>
-          <TouchableOpacity>
-            <Text style={styles.seeMoreText}>See more...</Text>
-          </TouchableOpacity>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.horizontalScroll}
-          contentContainerStyle={styles.horizontalScrollContent}
-        >
-          {showSkeletons || !hasPlacesLoaded(placesState) ? (
-            Array.from({ length: 3 }).map((_, index) => (
-              <SkeletonCard key={`skeleton-state-${index}`} />
-            ))
-          ) : placesState.length > 0 ? (
-            placesState.map((place, index) => (
-              <PlaceCard
-                key={place.id || index}
-                title={place.title}
-                price={place.price}
-                rating={place.rating}
-                imageUri={place.imageUri}
-                showBadge={place.showBadge}
-                isSmall={place.isSmall}
-                placeId={place.id}
-                onPress={onPlacePress}
-              />
-            ))
-          ) : (
-            <Text style={styles.noDataText}>No places found</Text>
-          )}
-        </ScrollView>
-      </View>
-
-      {/* Top places in country Section */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            Top places in {userCountry || "country"}
-          </Text>
-          <TouchableOpacity>
-            <Text style={styles.seeMoreText}>See more...</Text>
-          </TouchableOpacity>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.horizontalScroll}
-          contentContainerStyle={styles.horizontalScrollContent}
-        >
-          {showSkeletons || !hasPlacesLoaded(placesCountry) ? (
-            Array.from({ length: 3 }).map((_, index) => (
-              <SkeletonCard key={`skeleton-country-${index}`} />
-            ))
-          ) : placesCountry.length > 0 ? (
-            placesCountry.map((place, index) => (
-              <PlaceCard
-                key={place.id || index}
-                title={place.title}
-                price={place.price}
-                rating={place.rating}
-                imageUri={place.imageUri}
-                showBadge={place.showBadge}
-                isSmall={place.isSmall}
-                placeId={place.id}
-                onPress={onPlacePress}
-              />
-            ))
-          ) : (
-            <Text style={styles.noDataText}>No places found</Text>
-          )}
-        </ScrollView>
+            {/* Load More Button */}
+            <View style={styles.loadMoreContainer}>
+              <TouchableOpacity
+                style={styles.loadMoreButton}
+                onPress={handleLoadMore}
+              >
+                <Text style={styles.loadMoreButtonText}>Load More Places</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </View>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: colors.background,
+  },
   scrollView: {
     flex: 1,
     backgroundColor: colors.background,
   },
   scrollContent: {
-    paddingBottom: 0, // Account for bottom navbar
-    paddingTop: 0, // No padding between avatar and hello user section
+    paddingBottom: 70, // Extra padding to ensure button is visible above bottom nav
   },
-  headerContentSection: {
-    backgroundColor: colors.background,
-    height: 100, // 20% of screen height
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    justifyContent: "center",
-    marginTop: Platform.OS === "ios" ? 40 : 20, // Top bar height (paddingTop + paddingBottom + avatar)
-    marginHorizontal: 0,
-    elevation: 8,
-  },
-  headerGreeting: {
-    fontSize: 32,
-    fontWeight: "800",
-    marginBottom: 10,
-    color: colors.text,
-    letterSpacing: 0.3,
-    lineHeight: 32,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    fontWeight: "400",
-    color: colors.text,
-    letterSpacing: 0.3,
-    lineHeight: 24,
-  },
-  searchContainer: {
+  allPlacesContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  searchBarContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    height: 48,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  searchIcon: {
-    fontSize: 18,
-    marginRight: 8,
-    color: colors.textSecondary,
-  },
-  searchBar: {
-    flex: 1,
-    fontSize: 16,
-    color: colors.text,
-  },
-  section: {
-    marginTop: 8,
-    marginBottom: 24,
+    paddingTop: 16,
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
     marginBottom: 12,
   },
   sectionTitle: {
@@ -294,22 +300,57 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.text,
   },
-  seeMoreText: {
-    fontSize: 14,
-    color: colors.secondary,
-    fontWeight: "500",
-  },
-  horizontalScroll: {
-    marginHorizontal: 16,
-  },
-  horizontalScrollContent: {
-    paddingRight: 16,
-  },
-  noDataText: {
+  placeCount: {
     fontSize: 14,
     color: colors.textSecondary,
-    padding: 20,
+    fontWeight: "400",
+  },
+  gridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    marginTop: 12,
+  },
+  gridCard: {
+    width: (width - 48) / 2, // Two columns: (screen width - 32px padding - 16px gap) / 2
+    marginBottom: 16,
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 16,
+    color: colors.textSecondary,
     textAlign: "center",
+  },
+  errorText: {
+    fontSize: 16,
+    color: colors.error || "#FF3B30",
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  retryText: {
+    fontSize: 14,
+    color: colors.secondary,
+    textDecorationLine: "underline",
+  },
+  loadMoreContainer: {
+    paddingVertical: 18,
+    paddingBottom: 6,
+    alignItems: "center",
+    marginBottom: 20, // Extra margin to ensure button is visible above bottom nav
+  },
+  loadMoreButton: {
+    paddingHorizontal: 32,
+    minWidth: 200,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadMoreButtonText: {
+    color: "#000",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
 

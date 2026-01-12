@@ -1,4 +1,5 @@
-import { StatusBar } from "expo-status-bar";
+import React from "react";
+import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import {
   StyleSheet,
   Text,
@@ -9,8 +10,12 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  StatusBar,
+  ScrollView,
+  TextInput,
+  Image,
 } from "react-native";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "./config/supabase";
@@ -20,6 +25,71 @@ import BottomNavBar from "./components/BottomNavBar";
 import PlaceDetailScreen from "./components/PlaceDetailScreen";
 import ProfileScreen from "./components/ProfileScreen";
 import { colors } from "./constants/colors";
+import { getCachedPlaces, setCachedPlaces } from "./utils/placesCache";
+
+// Error Boundary Styles (defined before ErrorBoundary component)
+const errorBoundaryStyles = StyleSheet.create({
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: colors.background,
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: colors.error,
+    marginBottom: 16,
+    textAlign: "center",
+    paddingHorizontal: 20,
+  },
+  retryButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+});
+
+// Error Boundary Component
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("Error caught by boundary:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={errorBoundaryStyles.errorContainer}>
+          <Text style={errorBoundaryStyles.errorText}>
+            Something went wrong: {this.state.error?.message || "Unknown error"}
+          </Text>
+          <TouchableOpacity
+            style={errorBoundaryStyles.retryButton}
+            onPress={() => this.setState({ hasError: false, error: null })}
+          >
+            <Text style={errorBoundaryStyles.retryButtonText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const { width, height } = Dimensions.get("window");
 
@@ -27,23 +97,97 @@ export default function App() {
   const username = "User"; // Replace with actual username
   const [city, setCity] = useState("Your City"); // Will be updated from location
   const [activeTab, setActiveTab] = useState("home");
-  const [showUserMenu, setShowUserMenu] = useState(false);
   const [selectedPlaceId, setSelectedPlaceId] = useState(null);
+  const [activeCategory, setActiveCategory] = useState("All");
 
-  const [places50km, setPlaces50km] = useState([]);
-  const [placesCity, setPlacesCity] = useState([]);
-  const [placesCountry, setPlacesCountry] = useState([]);
-  const [placesState, setPlacesState] = useState([]);
+  // Category navigation data
+  const categories = [
+    {
+      id: "All",
+      label: "All",
+      image: require("./assets/categoryImages/allImg.png"),
+      iconSize: 38,
+      isActive: true,
+    },
+    {
+      id: "Sports",
+      label: "Sports",
+      image: require("./assets/categoryImages/sportsImg.png"),
+      iconSize: 50,
+      isActive: false,
+    },
+    {
+      id: "Adventure",
+      label: "Adventure",
+      image: require("./assets/categoryImages/adventureImg.png"),
+      iconSize: 50,
+      isActive: false,
+    },
+    {
+      id: "Parks",
+      label: "Parks",
+      image: require("./assets/categoryImages/parkImg.png"),
+      iconSize: 50,
+      isActive: false,
+    },
+    {
+      id: "Staycation",
+      label: "Staycation",
+      image: require("./assets/categoryImages/staycationImg.png"),
+      iconSize: 50,
+      isActive: false,
+    },
+    {
+      id: "Tickets",
+      label: "Tickets",
+      image: require("./assets/categoryImages/ticketImg.png"),
+      iconSize: 50,
+      isActive: false,
+    },
+    {
+      id: "Exclusive",
+      label: "Exclusive",
+      image: require("./assets/categoryImages/exclusiveImg.png"),
+      iconSize: 50,
+      isActive: false,
+    },
+  ];
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [userCountry, setUserCountry] = useState(null);
-  const [userState, setUserState] = useState(null);
+
+  // Track if initial fetch has been completed
+  const hasInitialFetchCompleted = useRef(false);
 
   useEffect(() => {
-    getLocationAndFetchPlaces();
+    // Only fetch once on initial app load
+    if (hasInitialFetchCompleted.current) {
+      console.log("📦 App already initialized, skipping fetch");
+      return;
+    }
+
+    // Delay initialization slightly to ensure app is mounted
+    const initTimer = setTimeout(() => {
+      // Get location to determine country for filtering
+      getLocationAndSetCountry().catch((err) => {
+        console.error("Error getting location:", err);
+        setError(err.message || "Failed to get location");
+        setLoading(false);
+      });
+    }, 100);
+
+    return () => clearTimeout(initTimer);
   }, []);
 
-  const getLocationAndFetchPlaces = async () => {
+  // Function to get location and set country for filtering
+  const getLocationAndSetCountry = async () => {
+    // Prevent multiple fetches - only fetch once on initial load
+    if (hasInitialFetchCompleted.current) {
+      console.log("📦 Initial fetch already completed, will not fetch again");
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -61,308 +205,56 @@ export default function App() {
         return;
       }
 
-      // Get device location
-      let location = await Location.getCurrentPositionAsync({});
+      // Get device location with timeout
+      let location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+        timeout: 10000, // 10 second timeout
+      });
+
+      if (!location || !location.coords) {
+        throw new Error("Could not get location coordinates");
+      }
+
       const { latitude, longitude } = location.coords;
 
+      if (!latitude || !longitude) {
+        throw new Error("Invalid location coordinates");
+      }
+
       // Reverse geocode to get country
-      let geocode = await Location.reverseGeocodeAsync({
-        latitude,
-        longitude,
-      });
+      let geocode;
+      try {
+        geocode = await Location.reverseGeocodeAsync({
+          latitude,
+          longitude,
+        });
+      } catch (geocodeError) {
+        console.warn("Reverse geocoding failed:", geocodeError);
+        setLoading(false);
+        return;
+      }
 
       if (geocode && geocode.length > 0) {
         const country = geocode[0].country;
         const cityName = geocode[0].city || geocode[0].subAdministrativeArea;
-        const stateName =
-          geocode[0].region ||
-          geocode[0].administrativeArea ||
-          geocode[0].subAdministrativeArea;
-        const address = geocode[0];
 
-        // Print extracted location info
         console.log("📍 Extracted Location Information:");
         console.log("Country:", country);
-        console.log("State:", stateName);
         console.log("City:", cityName);
-        console.log("Full address:", {
-          street: address.street,
-          city: address.city,
-          region: address.region,
-          administrativeArea: address.administrativeArea,
-          postalCode: address.postalCode,
-          country: address.country,
-          subAdministrativeArea: address.subAdministrativeArea,
-          subLocality: address.subLocality,
-        });
 
         setUserCountry(country);
-        setUserState(stateName);
         if (cityName) {
           setCity(cityName);
         }
-
-        // Fetch places with country filter and location
-        await fetchPlaces(country, latitude, longitude, cityName, stateName);
       } else {
         throw new Error("Could not determine location");
       }
     } catch (err) {
       console.error("Error getting location:", err);
       setError(err.message || "Failed to get location");
-      setLoading(false);
-    }
-  };
-
-  // Calculate distance between two coordinates using Haversine formula
-  // Returns distance in kilometers
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371; // Earth's radius in kilometers
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
-
-  const fetchPlaces = async (
-    country,
-    userLat,
-    userLon,
-    cityName,
-    stateName
-  ) => {
-    try {
-      if (!country) {
-        throw new Error("Country is required to fetch places");
-      }
-
-      console.log("🔍 Fetching places for country:", country);
-      if (userLat && userLon) {
-        console.log("📍 User location for distance calculation:", {
-          latitude: userLat,
-          longitude: userLon,
-        });
-      }
-
-      // Fetch all places in the country first
-      // Adjust the table name and column names based on your database schema
-      const { data: allPlaces, error: fetchError } = await supabase
-        .from("places") // Replace 'places' with your table name
-        .select("*")
-        .eq("country", country); // Filter by country - adjust column name if different
-
-      if (fetchError) {
-        console.error("❌ Error fetching places:", fetchError);
-        throw fetchError;
-      }
-
-      console.log(
-        `📊 Total places found in ${country}:`,
-        allPlaces?.length || 0
-      );
-
-      if (!allPlaces || allPlaces.length === 0) {
-        console.warn("⚠️ No places found in the country");
-        setPlaces50km([]);
-        setPlacesCity([]);
-        setPlacesCountry([]);
-        setPlacesState([]);
-        setLoading(false);
-        return;
-      }
-
-      // Filter places within 50km of user location
-      // Assumes places table has 'latitude' and 'longitude' columns
-      // Adjust column names if different (e.g., 'lat', 'lng', 'location_lat', etc.)
-      let places50km = [];
-      if (userLat && userLon) {
-        places50km = allPlaces
-          .filter((place) => {
-            const placeLat =
-              place.latitude ||
-              place.lat ||
-              place.location_latitude ||
-              place.place_latitude;
-            const placeLon =
-              place.longitude ||
-              place.lng ||
-              place.location_longitude ||
-              place.place_longitude;
-
-            if (!placeLat || !placeLon) {
-              console.warn("⚠️ Place missing coordinates:", place.id);
-              return false;
-            }
-
-            const distance = calculateDistance(
-              userLat,
-              userLon,
-              placeLat,
-              placeLon
-            );
-            return distance <= 50; // Within 50km
-          })
-          .sort((a, b) => {
-            // Sort by distance (closest first)
-            const distA = calculateDistance(
-              userLat,
-              userLon,
-              a.latitude || a.lat || a.location_latitude || a.place_latitude,
-              a.longitude || a.lng || a.location_longitude || a.place_longitude
-            );
-            const distB = calculateDistance(
-              userLat,
-              userLon,
-              b.latitude || b.lat || b.location_latitude || b.place_latitude,
-              b.longitude || b.lng || b.location_longitude || b.place_longitude
-            );
-            return distA - distB;
-          })
-          .slice(0, 10); // Limit to 10 places
-      } else {
-        // If no user location, just take first 10 places
-        places50km = allPlaces.slice(0, 10);
-        console.warn("⚠️ No user location provided, showing first 10 places");
-      }
-
-      // Filter places in the same city
-      let placesCity = [];
-      if (cityName) {
-        placesCity = allPlaces
-          .filter((place) => {
-            const placeCity =
-              place.city ||
-              place.city_name ||
-              place.location_city ||
-              place.place_city;
-            return (
-              placeCity &&
-              placeCity.toLowerCase().includes(cityName.toLowerCase())
-            );
-          })
-          .slice(0, 10);
-      } else {
-        // If no city name, just take first 10 places
-        placesCity = allPlaces.slice(0, 10);
-        console.warn("⚠️ No city name, showing first 10 places");
-      }
-
-      // If we still don't have city places, use all places
-      if (placesCity.length === 0) {
-        placesCity = allPlaces.slice(0, 10);
-      }
-
-      // Filter places in the same country (top places in country)
-      let placesCountry = [...allPlaces]
-        .sort((a, b) => {
-          // Sort by rating (highest first)
-          const ratingA = parseFloat(a.rating || a.average_rating || 0) || 0;
-          const ratingB = parseFloat(b.rating || b.average_rating || 0) || 0;
-          return ratingB - ratingA;
-        })
-        .slice(0, 10);
-
-      // Filter places in the same state
-      let placesState = [];
-      if (stateName) {
-        placesState = allPlaces
-          .filter((place) => {
-            const placeState =
-              place.state ||
-              place.state_name ||
-              place.region ||
-              place.location_state ||
-              place.place_state;
-            return (
-              placeState &&
-              placeState.toLowerCase().includes(stateName.toLowerCase())
-            );
-          })
-          .sort((a, b) => {
-            // Sort by rating (highest first)
-            const ratingA = parseFloat(a.rating || a.average_rating || 0) || 0;
-            const ratingB = parseFloat(b.rating || b.average_rating || 0) || 0;
-            return ratingB - ratingA;
-          })
-          .slice(0, 10);
-      } else {
-        // If no state name, just take top rated places
-        placesState = [...allPlaces]
-          .sort((a, b) => {
-            const ratingA = parseFloat(a.rating || a.average_rating || 0) || 0;
-            const ratingB = parseFloat(b.rating || b.average_rating || 0) || 0;
-            return ratingB - ratingA;
-          })
-          .slice(0, 10);
-        console.warn("⚠️ No state name, showing top rated places");
-      }
-
-      // If we still don't have state places, use all places
-      if (placesState.length === 0) {
-        placesState = allPlaces.slice(0, 10);
-      }
-
-      // Format the data to match PlaceCard props
-      // Adjust these mappings based on your database schema
-      const formatted50km = (places50km || []).map((place, index) => ({
-        id: place.id,
-        title: place.title || place.name || place.place_name || "Place",
-        price: `$${place.avg_price || 0} per person`,
-        rating:
-          place.rating?.toString() || place.average_rating?.toString() || "0",
-        imageUri: place.banner_image_link || place.image || place.photo_url,
-        showBadge: index === 0, // Show badge on first card
-        isSmall: false, // All cards same size
-      }));
-
-      const formattedCity = (placesCity || []).map((place, index) => ({
-        id: place.id,
-        title: place.title || place.name || place.place_name || "Place",
-        price: `$${place.avg_price || 0} per person`,
-        rating:
-          place.rating?.toString() || place.average_rating?.toString() || "0",
-        imageUri: place.banner_image_link || place.image || place.photo_url,
-        showBadge: index === 0, // Show badge on first card
-        isSmall: false, // All cards same size
-      }));
-
-      const formattedCountry = (placesCountry || []).map((place, index) => ({
-        id: place.id,
-        title: place.title || place.name || place.place_name || "Place",
-        price: `$${place.avg_price || 0} per person`,
-        rating:
-          place.rating?.toString() || place.average_rating?.toString() || "0",
-        imageUri: place.banner_image_link || place.image || place.photo_url,
-        showBadge: index === 0, // Show badge on first card
-        isSmall: false, // All cards same size
-      }));
-
-      const formattedState = (placesState || []).map((place, index) => ({
-        id: place.id,
-        title: place.title || place.name || place.place_name || "Place",
-        price: `$${place.avg_price || 0} per person`,
-        rating:
-          place.rating?.toString() || place.average_rating?.toString() || "0",
-        imageUri: place.banner_image_link || place.image || place.photo_url,
-        showBadge: index === 0, // Show badge on first card
-        isSmall: false, // All cards same size
-      }));
-
-      setPlaces50km(formatted50km);
-      setPlacesCity(formattedCity);
-      setPlacesCountry(formattedCountry);
-      setPlacesState(formattedState);
-    } catch (err) {
-      console.error("Error fetching places:", err);
-      setError(err.message || "Failed to fetch places");
     } finally {
       setLoading(false);
+      hasInitialFetchCompleted.current = true;
     }
   };
 
@@ -382,7 +274,7 @@ export default function App() {
         <Text style={styles.errorText}>Error: {error}</Text>
         <TouchableOpacity
           style={styles.retryButton}
-          onPress={getLocationAndFetchPlaces}
+          onPress={getLocationAndSetCountry}
         >
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
@@ -391,77 +283,117 @@ export default function App() {
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="light" />
+    <ErrorBoundary>
+      <View style={styles.container}>
+        <ExpoStatusBar style="light" />
 
-      {/* Top Bar Section - Avatar Only (Sticky) - Hidden on PlaceDetailScreen */}
-      {!selectedPlaceId && (
-        <View style={styles.topBar}>
-          <TouchableOpacity
-            style={styles.userIcon}
-            onPress={() => setShowUserMenu(!showUserMenu)}
-          >
-            <View style={styles.avatarGradient}>
-              <Ionicons name="person" size={20} color="#fff" />
-            </View>
-          </TouchableOpacity>
-
-          {/* User Menu Dropdown */}
-          {showUserMenu && (
-            <>
-              <TouchableWithoutFeedback onPress={() => setShowUserMenu(false)}>
-                <View style={styles.menuOverlay} />
-              </TouchableWithoutFeedback>
-              <View style={styles.userMenu}>
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setShowUserMenu(false);
-                    // Add logout logic here
-                    Alert.alert("Logout", "Are you sure you want to logout?", [
-                      { text: "Cancel", style: "cancel" },
-                      { text: "Logout", onPress: () => console.log("Logout") },
-                    ]);
-                  }}
-                >
-                  <Text style={styles.menuItemText}>Logout</Text>
-                </TouchableOpacity>
+        {/* Top Section - Search Bar and Categories - Hidden on PlaceDetailScreen */}
+        {!selectedPlaceId && (
+          <View style={styles.topSection}>
+            {/* Search Bar */}
+            <View style={styles.searchBarWrapper}>
+              <View style={styles.searchBarContainer}>
+                <Ionicons
+                  name="search"
+                  size={20}
+                  color="#717171"
+                  style={styles.searchIcon}
+                />
+                <TextInput
+                  style={styles.searchBarInput}
+                  placeholder="Start typing to search"
+                  placeholderTextColor="#717171"
+                  editable={false}
+                />
               </View>
-            </>
-          )}
-        </View>
-      )}
+            </View>
 
-      {selectedPlaceId ? (
-        <PlaceDetailScreen
-          placeId={selectedPlaceId}
-          onClose={() => setSelectedPlaceId(null)}
-        />
-      ) : (
-        <>
-          {activeTab === "explore" ? (
-            <ExploreScreen
-              userCountry={userCountry}
-              onPlacePress={setSelectedPlaceId}
-            />
-          ) : activeTab === "profile" ? (
-            <ProfileScreen />
-          ) : (
-            <HomeScreen
-              places50km={loading ? [] : places50km}
-              placesCity={loading ? [] : placesCity}
-              placesState={loading ? [] : placesState}
-              placesCountry={loading ? [] : placesCountry}
-              city={city}
-              userState={userState}
-              userCountry={userCountry}
-              onPlacePress={setSelectedPlaceId}
-            />
-          )}
-          <BottomNavBar activeTab={activeTab} onTabChange={setActiveTab} />
-        </>
-      )}
-    </View>
+            {/* Category Navigation */}
+            <View style={styles.categoryContainer}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoryScrollContent}
+              >
+                {categories.map((category) => {
+                  const isActive = activeCategory === category.id;
+                  return (
+                    <TouchableOpacity
+                      key={category.id}
+                      style={[
+                        styles.categoryItem,
+                        isActive && styles.categoryItemActive,
+                      ]}
+                      onPress={() => setActiveCategory(category.id)}
+                    >
+                      <View style={styles.categoryIconContainer}>
+                        {category.image ? (
+                          <Image
+                            source={category.image}
+                            style={[
+                              styles.categoryImage,
+                              {
+                                width: category.iconSize,
+                                height: category.iconSize,
+                              },
+                            ]}
+                            resizeMode="contain"
+                          />
+                        ) : (
+                          <Ionicons
+                            name={category.icon}
+                            size={category.iconSize}
+                            color="#222"
+                          />
+                        )}
+                      </View>
+                      <Text
+                        style={[
+                          styles.categoryLabel,
+                          isActive && styles.categoryLabelActive,
+                        ]}
+                      >
+                        {category.label}
+                      </Text>
+                      {isActive && <View style={styles.activeIndicator} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          </View>
+        )}
+
+        {selectedPlaceId ? (
+          <PlaceDetailScreen
+            placeId={selectedPlaceId}
+            onClose={() => setSelectedPlaceId(null)}
+          />
+        ) : (
+          <>
+            {activeTab === "explore" ? (
+              <ExploreScreen
+                userCountry={userCountry}
+                onPlacePress={setSelectedPlaceId}
+              />
+            ) : activeTab === "profile" ? (
+              <ProfileScreen />
+            ) : activeTab === "reels" ? (
+              <View style={styles.comingSoonContainer}>
+                <Text style={styles.comingSoonText}>Reels coming soon!</Text>
+              </View>
+            ) : (
+              <HomeScreen
+                userCountry={userCountry}
+                activeCategory={activeCategory}
+                onPlacePress={setSelectedPlaceId}
+              />
+            )}
+            <BottomNavBar activeTab={activeTab} onTabChange={setActiveTab} />
+          </>
+        )}
+      </View>
+    </ErrorBoundary>
   );
 }
 
@@ -470,81 +402,116 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  topBar: {
-    backgroundColor: "transparent",
-    paddingTop: Platform.OS === "ios" ? 60 : 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
+  topSection: {
+    backgroundColor: colors.background,
+    paddingTop:
+      Platform.OS === "ios" ? 60 : (StatusBar.currentHeight || 0) + 10,
+    paddingBottom: 12,
+    paddingHorizontal: 0,
     zIndex: 100,
   },
-  userIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
+  searchBarWrapper: {
+    paddingTop: 30,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  searchBarContainer: {
+    flexDirection: "row",
     alignItems: "center",
-    shadowColor: colors.primary,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  avatarGradient: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "rgba(255, 255, 255, 0.2)",
-  },
-  menuOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 999,
-  },
-  userMenu: {
-    position: "absolute",
-    top: Platform.OS === "ios" ? 66 : 46,
-    right: 20,
     backgroundColor: "#fff",
-    borderRadius: 12,
-    minWidth: 120,
+    borderRadius: 40, // More rounded, pill-shaped like Airbnb
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 1,
     },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
-    overflow: "hidden",
-    zIndex: 1000,
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.04)",
   },
-  menuItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+  searchIcon: {
+    marginRight: 12,
   },
-  menuItemText: {
+  searchBarInput: {
+    flex: 1,
     fontSize: 16,
-    fontWeight: "500",
-    color: colors.text,
+    color: "#222",
+  },
+  categoryContainer: {
+    paddingBottom: 0,
+    padding: 10,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: colors.background,
+    overflow: "hidden", // Clip any shadows that might appear on top
+    // Shadow only at the bottom - iOS
+    ...(Platform.OS === "ios" && {
+      shadowColor: "#000",
+      shadowOffset: {
+        width: 0,
+        height: 6, // Only downward shadow
+      },
+      shadowOpacity: 0.08,
+      shadowRadius: 4,
+    }),
+    // Android: Use borderBottom for shadow effect, no elevation to avoid top shadow
+    ...(Platform.OS === "android" && {
+      elevation: 0, // Remove elevation to prevent shadows on all sides
+    }),
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0, 0, 0, 0.05)",
+    borderTopWidth: 0, // Explicitly remove top border
+    borderLeftWidth: 0, // Explicitly remove side borders
+    borderRightWidth: 0,
+  },
+  categoryScrollContent: {
+    paddingHorizontal: 16,
+    paddingRight: 16,
+  },
+  categoryItem: {
+    alignItems: "center",
+    marginRight: 32,
+    position: "relative",
+    paddingBottom: 8, // Add padding to accommodate the indicator
+    minHeight: 60, // Ensure enough height
+  },
+  categoryItemActive: {
+    // Active state styling
+  },
+  categoryIconContainer: {
+    marginBottom: 8,
+    width: 32,
+    height: 48,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  categoryImage: {
+    width: 32,
+    height: 32,
+  },
+  categoryLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#717171",
+  },
+  categoryLabelActive: {
+    color: "#222",
+  },
+  activeIndicator: {
+    position: "absolute",
+    bottom: 0, // Position at the bottom of the category item
+    left: "45%",
+    transform: [{ translateX: -22 }], // Center the indicator (half of width 40)
+    width: 50,
+    height: 3,
+    backgroundColor: "#000",
+    borderRadius: 2,
+    zIndex: 10, // Ensure it's above other elements
   },
   loadingContainer: {
     justifyContent: "center",
@@ -572,5 +539,25 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: colors.background,
+    padding: 20,
+  },
+  comingSoonContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: colors.background,
+    padding: 20,
+  },
+  comingSoonText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: colors.text,
+    textAlign: "center",
   },
 });
