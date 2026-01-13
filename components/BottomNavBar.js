@@ -17,14 +17,16 @@ const { width } = Dimensions.get("window");
 const BottomNavBar = ({ activeTab, onTabChange }) => {
   const tabs = [
     { id: "home", label: "Home", icon: "home" },
-    { id: "explore", label: "Explore", icon: "compass" },
+    { id: "favorite", label: "Favorite", icon: "heart" },
+    { id: "trips", label: "Trips", icon: "airplane" },
     { id: "reels", label: "Reels", icon: "play-circle" },
     { id: "profile", label: "Profile", icon: "person" },
   ];
 
   // Initialize animation values for the active background indicator
   const homeIndicator = useRef(new Animated.Value(1)).current;
-  const exploreIndicator = useRef(new Animated.Value(0)).current;
+  const favoriteIndicator = useRef(new Animated.Value(0)).current;
+  const tripsIndicator = useRef(new Animated.Value(0)).current;
   const reelsIndicator = useRef(new Animated.Value(0)).current;
   const profileIndicator = useRef(new Animated.Value(0)).current;
 
@@ -32,8 +34,10 @@ const BottomNavBar = ({ activeTab, onTabChange }) => {
     switch (tabId) {
       case "home":
         return homeIndicator;
-      case "explore":
-        return exploreIndicator;
+      case "favorite":
+        return favoriteIndicator;
+      case "trips":
+        return tripsIndicator;
       case "reels":
         return reelsIndicator;
       case "profile":
@@ -75,7 +79,7 @@ const BottomNavBar = ({ activeTab, onTabChange }) => {
             // Interpolate the dimensions of the active background (rounded rectangle)
             const backgroundWidth = indicator.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, 85], // Width of the rounded background
+              outputRange: [0, 75], // Width of the rounded background
             });
 
             const backgroundHeight = indicator.interpolate({
@@ -202,7 +206,7 @@ const styles = StyleSheet.create({
   activeTabBackground: {
     position: "absolute",
     top: "50%",
-    left: "50%",
+    left: "57%",
     backgroundColor: "rgba(240, 240, 240, 0.95)",
     borderRadius: 28,
     zIndex: 0,

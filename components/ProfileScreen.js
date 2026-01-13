@@ -17,13 +17,93 @@ const { width } = Dimensions.get("window");
 const ProfileScreen = () => {
   // Mock user data - replace with actual user data from auth/database
   const userData = {
-    name: "Terry Melton",
-    email: "melton89@gmail.com",
-    phone: "+1 201 555-0123",
-    address: "70 Rainey Street, Apartment 146, Austin TX 78701",
+    name: "Ronald Richards",
+    email: "ronaldrichards@gmail.com",
     profileImage:
       "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop",
   };
+
+  const accountItems = [
+    {
+      id: "manage-profile",
+      label: "Manage Profile",
+      icon: "person-circle-outline",
+    },
+    {
+      id: "password-security",
+      label: "Password & Security",
+      icon: "lock-closed-outline",
+    },
+    {
+      id: "notifications",
+      label: "Notifications",
+      icon: "notifications-outline",
+    },
+    {
+      id: "language",
+      label: "Language",
+      icon: "language-outline",
+      value: "English",
+    },
+  ];
+
+  const preferencesItems = [
+    {
+      id: "about-us",
+      label: "About Us",
+      icon: "document-text-outline",
+    },
+    {
+      id: "theme",
+      label: "Theme",
+      icon: "color-palette-outline",
+      value: "Light",
+    },
+    {
+      id: "appointments",
+      label: "Appointments",
+      icon: "calendar-outline",
+    },
+  ];
+
+  const supportItems = [
+    {
+      id: "help-center",
+      label: "Help Center",
+      icon: "help-circle-outline",
+    },
+  ];
+
+  const renderMenuItem = (item, index, total) => (
+    <TouchableOpacity
+      key={item.id}
+      style={[
+        styles.menuItem,
+        index === total - 1 && styles.menuItemLast,
+      ]}
+      activeOpacity={0.7}
+    >
+      <View style={styles.menuItemLeft}>
+        <Ionicons
+          name={item.icon}
+          size={22}
+          color={colors.text}
+          style={styles.menuIcon}
+        />
+        <View style={styles.menuItemContent}>
+          <Text style={styles.menuItemLabel}>{item.label}</Text>
+          {item.value && (
+            <Text style={styles.menuItemValue}>{item.value}</Text>
+          )}
+        </View>
+      </View>
+      <Ionicons
+        name="chevron-forward"
+        size={20}
+        color={colors.textSecondary}
+      />
+    </TouchableOpacity>
+  );
 
   return (
     <ScrollView
@@ -36,101 +116,57 @@ const ProfileScreen = () => {
         <Text style={styles.headerTitle}>Profile</Text>
       </View>
 
-      {/* Profile Picture Section */}
-      <View style={styles.profilePictureSection}>
-        <View style={styles.profilePictureContainer}>
-          <ExpoImage
-            source={
-              userData.profileImage
-                ? { uri: userData.profileImage }
-                : {
-                    uri: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop",
-                  }
-            }
-            style={styles.profilePicture}
-            contentFit="cover"
-            placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
-          />
-          <TouchableOpacity style={styles.editPictureButton}>
-            <Ionicons name="pencil" size={16} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Personal Info Section */}
-      <View style={styles.settingsCard}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.settingsCardTitle}>Personal info</Text>
-          <TouchableOpacity>
-            <Text style={styles.editButtonText}>Edit</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.settingsCardContent}>
-          {/* Name */}
-          <View style={styles.settingsRow}>
-            <Ionicons
-              name="person-outline"
-              size={20}
-              color={colors.textSecondary}
-              style={styles.rowIcon}
+      {/* Profile Summary Section */}
+      <View style={styles.profileCard}>
+        <View style={styles.profileCardContent}>
+          <View style={styles.avatarContainer}>
+            <ExpoImage
+              source={
+                userData.profileImage
+                  ? { uri: userData.profileImage }
+                  : {
+                      uri: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop",
+                    }
+              }
+              style={styles.avatar}
+              contentFit="cover"
+              placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
             />
-            <View style={styles.rowContent}>
-              <Text style={styles.rowLabel}>Name</Text>
-              <Text style={styles.rowValue}>{userData.name}</Text>
-            </View>
           </View>
-
-          {/* Email */}
-          <View style={styles.settingsRow}>
-            <Ionicons
-              name="mail-outline"
-              size={20}
-              color={colors.textSecondary}
-              style={styles.rowIcon}
-            />
-            <View style={styles.rowContent}>
-              <Text style={styles.rowLabel}>E-mail</Text>
-              <Text style={styles.rowValue}>{userData.email}</Text>
-            </View>
-          </View>
-
-          {/* Phone */}
-          <View style={styles.settingsRow}>
-            <Ionicons
-              name="call-outline"
-              size={20}
-              color={colors.textSecondary}
-              style={styles.rowIcon}
-            />
-            <View style={styles.rowContent}>
-              <Text style={styles.rowLabel}>Phone number</Text>
-              <Text style={styles.rowValue}>{userData.phone}</Text>
-            </View>
-          </View>
-
-          {/* Address */}
-          <View style={[styles.settingsRow, styles.settingsRowLast]}>
-            <Ionicons
-              name="home-outline"
-              size={20}
-              color={colors.textSecondary}
-              style={styles.rowIcon}
-            />
-            <View style={styles.rowContent}>
-              <Text style={styles.rowLabel}>Home address</Text>
-              <Text style={styles.rowValue}>{userData.address}</Text>
-            </View>
+          <View style={styles.profileInfo}>
+            <Text style={styles.userName}>{userData.name}</Text>
+            <Text style={styles.userEmail}>{userData.email}</Text>
           </View>
         </View>
       </View>
 
-      {/* Account Info Section */}
-      <View style={styles.settingsCard}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.settingsCardTitle}>Account info</Text>
+      {/* Account Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Account</Text>
+        <View style={styles.menuCard}>
+          {accountItems.map((item, index) =>
+            renderMenuItem(item, index, accountItems.length)
+          )}
         </View>
-        <View style={styles.settingsCardContent}>
-          {/* Placeholder - can add account-related fields here */}
+      </View>
+
+      {/* Preferences Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Preferences</Text>
+        <View style={styles.menuCard}>
+          {preferencesItems.map((item, index) =>
+            renderMenuItem(item, index, preferencesItems.length)
+          )}
+        </View>
+      </View>
+
+      {/* Support Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Support</Text>
+        <View style={styles.menuCard}>
+          {supportItems.map((item, index) =>
+            renderMenuItem(item, index, supportItems.length)
+          )}
         </View>
       </View>
     </ScrollView>
@@ -140,10 +176,10 @@ const ProfileScreen = () => {
 const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.background || "#FFFFFF",
   },
   scrollContent: {
-    paddingTop: Platform.OS === "ios" ? 120 : 110, // Top bar height
+    paddingTop: 100,
     paddingBottom: 100,
     paddingHorizontal: 20,
   },
@@ -154,107 +190,88 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: "700",
-    color: colors.text,
+    color: colors.text || "#000000",
   },
-  profilePictureSection: {
-    alignItems: "center",
-    marginBottom: 32,
+  profileCard: {
+    backgroundColor: colors.surface || "#F5F5F5",
+    borderRadius: 12,
+    marginBottom: 24,
+    padding: 16,
   },
-  profilePictureContainer: {
-    position: "relative",
-  },
-  profilePicture: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: colors.surface,
-  },
-  editPictureButton: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.cardBackground,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: colors.cardBackground,
-    shadowColor: colors.shadow,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  settingsCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    marginBottom: 20,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cardHeader: {
+  profileCardContent: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    padding: 20,
-    paddingBottom: 12,
   },
-  settingsCardTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: colors.text,
+  avatarContainer: {
+    marginRight: 16,
   },
-  editButtonText: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: colors.secondary,
+  avatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.surface || "#E0E0E0",
   },
-  settingsCardContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 8,
-  },
-  settingsRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  settingsRowLast: {
-    borderBottomWidth: 0,
-  },
-  rowIcon: {
-    marginRight: 12,
-    marginTop: 2,
-  },
-  rowContent: {
+  profileInfo: {
     flex: 1,
   },
-  rowLabel: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: colors.textSecondary,
+  userName: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: colors.text || "#000000",
     marginBottom: 4,
   },
-  rowValue: {
+  userEmail: {
+    fontSize: 14,
+    color: colors.textSecondary || "#666666",
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: colors.textSecondary || "#666666",
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  menuCard: {
+    backgroundColor: colors.surface || "#F5F5F5",
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border || "#E0E0E0",
+  },
+  menuItemLast: {
+    borderBottomWidth: 0,
+  },
+  menuItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  menuIcon: {
+    marginRight: 12,
+  },
+  menuItemContent: {
+    flex: 1,
+  },
+  menuItemLabel: {
     fontSize: 16,
     fontWeight: "400",
-    color: colors.text,
-    lineHeight: 22,
+    color: colors.text || "#000000",
+  },
+  menuItemValue: {
+    fontSize: 14,
+    color: colors.textSecondary || "#666666",
+    marginTop: 2,
   },
 });
 
 export default ProfileScreen;
-

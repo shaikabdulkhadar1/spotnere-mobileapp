@@ -19,8 +19,10 @@ import { useState, useEffect, useRef } from "react";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "./config/supabase";
-import ExploreScreen from "./components/ExploreScreen";
 import HomeScreen from "./components/HomeScreen";
+import FavoriteScreen from "./components/FavoriteScreen";
+import TripsScreen from "./components/TripsScreen";
+import ReelsScreen from "./components/ReelsScreen";
 import BottomNavBar from "./components/BottomNavBar";
 import PlaceDetailScreen from "./components/PlaceDetailScreen";
 import ProfileScreen from "./components/ProfileScreen";
@@ -287,8 +289,8 @@ export default function App() {
       <View style={styles.container}>
         <ExpoStatusBar style="light" />
 
-        {/* Top Section - Search Bar and Categories - Hidden on PlaceDetailScreen */}
-        {!selectedPlaceId && (
+        {/* Top Section - Search Bar and Categories - Hidden on PlaceDetailScreen and shown only on Home tab */}
+        {!selectedPlaceId && activeTab === "home" && (
           <View style={styles.topSection}>
             {/* Search Bar */}
             <View style={styles.searchBarWrapper}>
@@ -371,17 +373,23 @@ export default function App() {
           />
         ) : (
           <>
-            {activeTab === "explore" ? (
-              <ExploreScreen
+            {activeTab === "favorite" ? (
+              <FavoriteScreen
+                userCountry={userCountry}
+                onPlacePress={setSelectedPlaceId}
+              />
+            ) : activeTab === "trips" ? (
+              <TripsScreen
+                userCountry={userCountry}
+                onPlacePress={setSelectedPlaceId}
+              />
+            ) : activeTab === "reels" ? (
+              <ReelsScreen
                 userCountry={userCountry}
                 onPlacePress={setSelectedPlaceId}
               />
             ) : activeTab === "profile" ? (
               <ProfileScreen />
-            ) : activeTab === "reels" ? (
-              <View style={styles.comingSoonContainer}>
-                <Text style={styles.comingSoonText}>Reels coming soon!</Text>
-              </View>
             ) : (
               <HomeScreen
                 userCountry={userCountry}
