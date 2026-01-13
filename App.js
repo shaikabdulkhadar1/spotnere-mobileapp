@@ -16,6 +16,7 @@ import {
   Image,
 } from "react-native";
 import { useState, useEffect, useRef } from "react";
+import { useFonts } from "expo-font";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "./config/supabase";
@@ -27,6 +28,7 @@ import BottomNavBar from "./components/BottomNavBar";
 import PlaceDetailScreen from "./components/PlaceDetailScreen";
 import ProfileScreen from "./components/ProfileScreen";
 import { colors } from "./constants/colors";
+import { fonts } from "./constants/fonts";
 import { getCachedPlaces, setCachedPlaces } from "./utils/placesCache";
 
 // Error Boundary Styles (defined before ErrorBoundary component)
@@ -44,6 +46,7 @@ const errorBoundaryStyles = StyleSheet.create({
     marginBottom: 16,
     textAlign: "center",
     paddingHorizontal: 20,
+    fontFamily: fonts.regular,
   },
   retryButton: {
     backgroundColor: colors.primary,
@@ -55,6 +58,7 @@ const errorBoundaryStyles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+    fontFamily: fonts.regular,
   },
 });
 
@@ -96,6 +100,16 @@ class ErrorBoundary extends React.Component {
 const { width, height } = Dimensions.get("window");
 
 export default function App() {
+  // Load custom fonts
+  const [fontsLoaded] = useFonts({
+    "Parkinsans-Light": require("./assets/fonts/Parkinsans-Light.ttf"),
+    "Parkinsans-Regular": require("./assets/fonts/Parkinsans-Regular.ttf"),
+    "Parkinsans-Medium": require("./assets/fonts/Parkinsans-Medium.ttf"),
+    "Parkinsans-SemiBold": require("./assets/fonts/Parkinsans-SemiBold.ttf"),
+    "Parkinsans-Bold": require("./assets/fonts/Parkinsans-Bold.ttf"),
+    "Parkinsans-ExtraBold": require("./assets/fonts/Parkinsans-ExtraBold.ttf"),
+  });
+
   const username = "User"; // Replace with actual username
   const [city, setCity] = useState("Your City"); // Will be updated from location
   const [activeTab, setActiveTab] = useState("home");
@@ -260,6 +274,15 @@ export default function App() {
     }
   };
 
+  // Show loading indicator while fonts are loading
+  if (!fontsLoaded) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={colors.primary || "#007AFF"} />
+      </View>
+    );
+  }
+
   // Don't show loading screen - let HomeScreen show skeleton loaders
   // if (loading) {
   //   return (
@@ -411,10 +434,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   topSection: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.topsectionbackground,
     paddingTop:
       Platform.OS === "ios" ? 60 : (StatusBar.currentHeight || 0) + 10,
-    paddingBottom: 12,
     paddingHorizontal: 0,
     zIndex: 100,
   },
@@ -455,7 +477,7 @@ const styles = StyleSheet.create({
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: colors.background,
+    backgroundColor: colors.topsectionbackground,
     overflow: "hidden", // Clip any shadows that might appear on top
     // Shadow only at the bottom - iOS
     ...(Platform.OS === "ios" && {
@@ -504,11 +526,12 @@ const styles = StyleSheet.create({
   },
   categoryLabel: {
     fontSize: 12,
-    fontWeight: "600",
     color: "#717171",
+    fontFamily: fonts.regular,
   },
   categoryLabelActive: {
     color: "#222",
+    fontFamily: fonts.semiBold,
   },
   activeIndicator: {
     position: "absolute",
@@ -529,6 +552,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: colors.textSecondary,
+    fontFamily: fonts.regular,
   },
   errorText: {
     fontSize: 16,
@@ -536,6 +560,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: "center",
     paddingHorizontal: 20,
+    fontFamily: fonts.regular,
   },
   retryButton: {
     backgroundColor: colors.primary,
@@ -547,6 +572,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+    fontFamily: fonts.regular,
   },
   errorContainer: {
     flex: 1,
@@ -567,5 +593,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.text,
     textAlign: "center",
+    fontFamily: fonts.regular,
   },
 });

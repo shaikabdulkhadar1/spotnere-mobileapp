@@ -13,6 +13,7 @@ import { supabase } from "../config/supabase";
 import PlaceCard from "./PlaceCard";
 import SkeletonCard from "./SkeletonCard";
 import { colors } from "../constants/colors";
+import { fonts } from "../constants/fonts";
 import { getReels } from "../utils/reels";
 
 const { width, height } = Dimensions.get("window");
@@ -208,11 +209,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: colors.text,
+    fontFamily: fonts.regular,
   },
   placeCount: {
     fontSize: 14,
     color: colors.textSecondary,
     fontWeight: "400",
+    fontFamily: fonts.regular,
   },
   gridContainer: {
     flexDirection: "row",
@@ -244,18 +247,21 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 12,
     textAlign: "center",
+    fontFamily: fonts.regular,
   },
   emptyText: {
     fontSize: 16,
     color: colors.textSecondary,
     textAlign: "center",
     lineHeight: 24,
+    fontFamily: fonts.regular,
   },
   errorText: {
     fontSize: 16,
     color: colors.error || "#FF3B30",
     textAlign: "center",
     marginBottom: 12,
+    fontFamily: fonts.regular,
   },
   retryButton: {
     padding: 12,
@@ -264,6 +270,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.primary,
     textDecorationLine: "underline",
+    fontFamily: fonts.regular,
   },
 });
 

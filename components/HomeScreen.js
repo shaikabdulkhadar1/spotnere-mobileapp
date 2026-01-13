@@ -13,6 +13,7 @@ import { supabase } from "../config/supabase";
 import PlaceCard from "./PlaceCard";
 import SkeletonCard from "./SkeletonCard";
 import { colors } from "../constants/colors";
+import { fonts } from "../constants/fonts";
 
 const { width } = Dimensions.get("window");
 
@@ -323,17 +324,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
     textAlign: "center",
+    fontFamily: fonts.regular,
   },
   errorText: {
     fontSize: 16,
     color: colors.error || "#FF3B30",
     textAlign: "center",
     marginBottom: 12,
+    fontFamily: fonts.regular,
   },
   retryText: {
     fontSize: 14,
     color: colors.secondary,
     textDecorationLine: "underline",
+    fontFamily: fonts.regular,
   },
   loadMoreContainer: {
     paddingVertical: 18,
@@ -351,6 +355,7 @@ const styles = StyleSheet.create({
     color: "#000",
     fontSize: 16,
     fontWeight: "600",
+    fontFamily: fonts.regular,
   },
 });
 

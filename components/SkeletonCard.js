@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { StyleSheet, View, Animated, Dimensions } from "react-native";
+import { StyleSheet, View, Animated, Dimensions, Platform } from "react-native";
 import { colors } from "../constants/colors";
 
 const { width } = Dimensions.get("window");
@@ -43,12 +43,18 @@ const SkeletonCard = ({ isSmall = false }) => {
         style={[
           styles.skeletonImage,
           isSmall && styles.skeletonImageSmall,
+          Platform.OS === "ios" && styles.skeletonImageIOS,
           { opacity },
         ]}
       />
 
       {/* Content Skeleton */}
-      <View style={styles.skeletonContent}>
+        <View
+          style={[
+            styles.skeletonContent,
+            Platform.OS === "ios" && styles.skeletonContentIOS,
+          ]}
+        >
         <Animated.View
           style={[styles.skeletonLine, styles.skeletonTitle, { opacity }]}
         />
@@ -69,7 +75,11 @@ const styles = StyleSheet.create({
     marginRight: 12,
     borderRadius: 12,
     backgroundColor: colors.cardBackground,
-    overflow: "hidden",
+    // Only apply overflow hidden on Android to maintain rounded corners
+    // On iOS, we need overflow visible for shadows to show
+    ...(Platform.OS === "android" && {
+      overflow: "hidden",
+    }),
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -86,12 +96,30 @@ const styles = StyleSheet.create({
     width: "100%",
     height: (width - 64) * 0.4,
     backgroundColor: colors.surface,
+    // On iOS, ensure image respects border radius
+    ...(Platform.OS === "ios" && {
+      borderTopLeftRadius: 12,
+      borderTopRightRadius: 12,
+      overflow: "hidden",
+    }),
+  },
+  skeletonImageIOS: {
+    // Additional iOS-specific styling if needed
   },
   skeletonImageSmall: {
     height: (width - 64) * 0.35,
   },
   skeletonContent: {
     padding: 12,
+    // On iOS, ensure content respects border radius
+    ...(Platform.OS === "ios" && {
+      borderBottomLeftRadius: 12,
+      borderBottomRightRadius: 12,
+      overflow: "hidden",
+    }),
+  },
+  skeletonContentIOS: {
+    // Additional iOS-specific styling if needed
   },
   skeletonLine: {
     backgroundColor: colors.surface,

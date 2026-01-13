@@ -14,6 +14,7 @@ import { supabase } from "../config/supabase";
 import PlaceCard from "./PlaceCard";
 import SkeletonCard from "./SkeletonCard";
 import { colors } from "../constants/colors";
+import { fonts } from "../constants/fonts";
 import { getCachedPlaces, setCachedPlaces } from "../utils/placesCache";
 
 const { width } = Dimensions.get("window");
@@ -551,19 +552,25 @@ const styles = StyleSheet.create({
   },
   exploreTitle: {
     fontSize: 28,
+    fontFamily: fonts.regular,
     fontWeight: "700",
     color: colors.text,
     marginBottom: 8,
   },
   exploreSubtitle: {
     fontSize: 16,
+    fontFamily: fonts.regular,
     color: colors.text,
   },
   filtersContainer: {
     marginBottom: 20,
     backgroundColor: colors.cardBackground,
     borderRadius: 12,
-    overflow: "hidden",
+    // Only apply overflow hidden on Android to maintain rounded corners
+    // On iOS, we need overflow visible for shadows to show
+    ...(Platform.OS === "android" && {
+      overflow: "hidden",
+    }),
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -582,6 +589,7 @@ const styles = StyleSheet.create({
   },
   filtersHeaderText: {
     fontSize: 18,
+    fontFamily: fonts.regular,
     fontWeight: "600",
     color: colors.text,
   },
@@ -603,6 +611,7 @@ const styles = StyleSheet.create({
   },
   filterLabel: {
     fontSize: 14,
+    fontFamily: fonts.regular,
     fontWeight: "600",
     color: colors.textSecondary,
     marginBottom: 12,
@@ -627,6 +636,7 @@ const styles = StyleSheet.create({
   },
   filterChipText: {
     fontSize: 14,
+    fontFamily: fonts.regular,
     color: colors.text,
     fontWeight: "500",
   },
@@ -657,11 +667,13 @@ const styles = StyleSheet.create({
   },
   clearButtonText: {
     fontSize: 14,
+    fontFamily: fonts.regular,
     fontWeight: "600",
     color: colors.textSecondary,
   },
   applyButtonText: {
     fontSize: 14,
+    fontFamily: fonts.regular,
     fontWeight: "600",
     color: "#fff",
   },
@@ -682,6 +694,7 @@ const styles = StyleSheet.create({
   },
   noDataText: {
     fontSize: 16,
+    fontFamily: fonts.regular,
     color: colors.textSecondary,
     textAlign: "center",
   },

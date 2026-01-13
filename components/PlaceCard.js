@@ -1,8 +1,15 @@
 import React from "react";
-import { StyleSheet, Text, View, TouchableOpacity } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  Platform,
+} from "react-native";
 import { Image as ExpoImage } from "expo-image";
 import { Dimensions } from "react-native";
 import { colors } from "../constants/colors";
+import { fonts } from "../constants/fonts";
 
 const { width } = Dimensions.get("window");
 
@@ -33,6 +40,7 @@ const PlaceCard = ({
         style={[
           styles.cardImageContainer,
           isSmall && styles.cardImageContainerSmall,
+          Platform.OS === "ios" && styles.cardImageContainerIOS,
         ]}
       >
         <ExpoImage
@@ -67,7 +75,13 @@ const PlaceCard = ({
       </View>
 
       {/* Card Content */}
-      <View style={[styles.cardContent, isSmall && styles.cardContentSmall]}>
+      <View
+        style={[
+          styles.cardContent,
+          isSmall && styles.cardContentSmall,
+          Platform.OS === "ios" && styles.cardContentIOS,
+        ]}
+      >
         <Text
           style={[styles.cardTitle, isSmall && styles.cardTitleSmall]}
           numberOfLines={1}
@@ -94,7 +108,11 @@ const styles = StyleSheet.create({
     marginRight: 12,
     borderRadius: 12,
     backgroundColor: colors.cardBackground,
-    overflow: "hidden",
+    // Only apply overflow hidden on Android to maintain rounded corners
+    // On iOS, we need overflow visible for shadows to show
+    ...(Platform.OS === "android" && {
+      overflow: "hidden",
+    }),
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -112,6 +130,16 @@ const styles = StyleSheet.create({
     height: (width - 64) * 0.4,
     position: "relative",
     backgroundColor: colors.surface,
+    // On Android, overflow hidden is handled by parent
+    // On iOS, we need overflow hidden here to clip image corners
+    ...(Platform.OS === "ios" && {
+      borderTopLeftRadius: 12,
+      borderTopRightRadius: 12,
+      overflow: "hidden",
+    }),
+  },
+  cardImageContainerIOS: {
+    // Additional iOS-specific styling if needed
   },
   cardImageContainerSmall: {
     height: (width - 64) * 0.35, // Slightly smaller image for small card but proportional
@@ -124,7 +152,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 12,
     left: 12,
-    backgroundColor: colors.cardBackground,
+    backgroundColor: colors.badgeBackground,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 20,
@@ -138,9 +166,10 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   badgeText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "600",
     color: colors.text,
+    fontFamily: fonts.regular,
   },
   heartButton: {
     position: "absolute",
@@ -158,28 +187,40 @@ const styles = StyleSheet.create({
   cardContent: {
     padding: 12,
     flex: 1,
+    // On iOS, ensure content respects border radius
+    ...(Platform.OS === "ios" && {
+      borderBottomLeftRadius: 12,
+      borderBottomRightRadius: 12,
+      overflow: "hidden",
+    }),
+  },
+  cardContentIOS: {
+    // Additional iOS-specific styling if needed
   },
   cardContentSmall: {
     padding: 10,
   },
   cardTitle: {
-    fontSize: 15,
-    fontWeight: "500",
+    fontSize: 13,
     color: colors.text,
     marginBottom: 4,
+    fontFamily: fonts.semiBold,
   },
   cardTitleSmall: {
-    fontSize: 13,
+    fontSize: 10,
     marginBottom: 3,
+    fontFamily: fonts.semiBold,
   },
   cardPrice: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textSecondary,
     marginBottom: 6,
+    fontFamily: fonts.regular,
   },
   cardPriceSmall: {
     fontSize: 12,
     marginBottom: 4,
+    fontFamily: fonts.regular,
   },
   cardRating: {
     flexDirection: "row",
@@ -194,9 +235,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     color: colors.text,
+    fontFamily: fonts.regular,
   },
   ratingTextSmall: {
     fontSize: 12,
+    fontFamily: fonts.regular,
   },
 });
 

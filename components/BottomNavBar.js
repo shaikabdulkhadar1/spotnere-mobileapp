@@ -12,6 +12,8 @@ import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../constants/colors";
 
+import { fonts } from "../constants/fonts";
+
 const { width } = Dimensions.get("window");
 
 const BottomNavBar = ({ activeTab, onTabChange }) => {
@@ -135,7 +137,9 @@ const BottomNavBar = ({ activeTab, onTabChange }) => {
                     <Text
                       style={[
                         styles.navLabel,
-                        { color: isActive ? "#000" : "#fff" },
+                        {
+                          color: isActive ? "#000" : "#fff",
+                        },
                       ]}
                     >
                       {tab.label}
@@ -167,7 +171,7 @@ const styles = StyleSheet.create({
     overflow: "hidden", // Required for borderRadius to work
     backgroundColor: "transparent", // Transparent background
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.2)", // More transparent border
+    borderColor: "rgba(202, 211, 167, 0.2)", // More transparent border
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -187,7 +191,7 @@ const styles = StyleSheet.create({
     borderRadius: 35,
     overflow: "hidden",
     // Semi-transparent background to maintain original color (colors.primary: #223843)
-    backgroundColor: "rgba(34, 56, 67, 0.7)", // Same color as before but transparent
+    backgroundColor: colors.primary, // Same color as before but transparent
   },
   navItem: {
     flex: 1,
@@ -225,6 +229,7 @@ const styles = StyleSheet.create({
   navLabel: {
     fontSize: 11,
     fontWeight: "600",
+    fontFamily: fonts.regular,
   },
 });
 

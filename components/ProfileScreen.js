@@ -11,6 +11,7 @@ import {
 import { Image as ExpoImage } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../constants/colors";
+import { fonts } from "../constants/fonts";
 
 const { width } = Dimensions.get("window");
 
@@ -77,10 +78,7 @@ const ProfileScreen = () => {
   const renderMenuItem = (item, index, total) => (
     <TouchableOpacity
       key={item.id}
-      style={[
-        styles.menuItem,
-        index === total - 1 && styles.menuItemLast,
-      ]}
+      style={[styles.menuItem, index === total - 1 && styles.menuItemLast]}
       activeOpacity={0.7}
     >
       <View style={styles.menuItemLeft}>
@@ -92,16 +90,10 @@ const ProfileScreen = () => {
         />
         <View style={styles.menuItemContent}>
           <Text style={styles.menuItemLabel}>{item.label}</Text>
-          {item.value && (
-            <Text style={styles.menuItemValue}>{item.value}</Text>
-          )}
+          {item.value && <Text style={styles.menuItemValue}>{item.value}</Text>}
         </View>
       </View>
-      <Ionicons
-        name="chevron-forward"
-        size={20}
-        color={colors.textSecondary}
-      />
+      <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
     </TouchableOpacity>
   );
 
@@ -176,7 +168,7 @@ const ProfileScreen = () => {
 const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
-    backgroundColor: colors.background || "#FFFFFF",
+    backgroundColor: colors.background,
   },
   scrollContent: {
     paddingTop: 100,
@@ -190,10 +182,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: "700",
-    color: colors.text || "#000000",
+    color: colors.text,
+    fontFamily: fonts.regular,
   },
   profileCard: {
-    backgroundColor: colors.surface || "#F5F5F5",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     marginBottom: 24,
     padding: 16,
@@ -209,7 +202,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: colors.surface || "#E0E0E0",
+    backgroundColor: colors.surface,
   },
   profileInfo: {
     flex: 1,
@@ -217,12 +210,14 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 18,
     fontWeight: "600",
-    color: colors.text || "#000000",
+    color: colors.text,
     marginBottom: 4,
+    fontFamily: fonts.regular,
   },
   userEmail: {
     fontSize: 14,
-    color: colors.textSecondary || "#666666",
+    color: colors.textSecondary,
+    fontFamily: fonts.regular,
   },
   section: {
     marginBottom: 24,
@@ -230,12 +225,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: "500",
-    color: colors.textSecondary || "#666666",
+    color: colors.textSecondary,
     marginBottom: 8,
     marginLeft: 4,
   },
   menuCard: {
-    backgroundColor: colors.surface || "#F5F5F5",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     overflow: "hidden",
   },
@@ -246,7 +241,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border || "#E0E0E0",
+    borderBottomColor: colors.border,
   },
   menuItemLast: {
     borderBottomWidth: 0,
@@ -265,12 +260,14 @@ const styles = StyleSheet.create({
   menuItemLabel: {
     fontSize: 16,
     fontWeight: "400",
-    color: colors.text || "#000000",
+    color: colors.text,
+    fontFamily: fonts.regular,
   },
   menuItemValue: {
     fontSize: 14,
-    color: colors.textSecondary || "#666666",
+    color: colors.textSecondary,
     marginTop: 2,
+    fontFamily: fonts.regular,
   },
 });
 

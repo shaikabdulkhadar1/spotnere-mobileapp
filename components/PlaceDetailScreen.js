@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
 import { supabase } from "../config/supabase";
 import { colors } from "../constants/colors";
+import { fonts } from "../constants/fonts";
 
 const { width, height } = Dimensions.get("window");
 
@@ -653,6 +654,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
+    fontFamily: fonts.regular,
     fontWeight: "700",
     color: colors.text,
     marginBottom: 0,
@@ -665,6 +667,7 @@ const styles = StyleSheet.create({
   },
   location: {
     fontSize: 16,
+    fontFamily: fonts.regular,
     color: colors.text,
     marginLeft: 6,
     marginRight: 16,
@@ -679,6 +682,7 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 14,
+    fontFamily: fonts.regular,
     color: colors.text,
     marginLeft: 4,
     fontWeight: "500",
@@ -689,6 +693,7 @@ const styles = StyleSheet.create({
   },
   likesText: {
     fontSize: 14,
+    fontFamily: fonts.regular,
     color: colors.text,
     marginLeft: 4,
     fontWeight: "500",
@@ -709,6 +714,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 14,
+    fontFamily: fonts.regular,
     fontWeight: "600",
     color: "#fff",
     marginLeft: 6,
@@ -718,6 +724,7 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 16,
+    fontFamily: fonts.regular,
     color: colors.text,
     lineHeight: 24,
   },
@@ -725,7 +732,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 16,
     marginBottom: 20,
-    overflow: "hidden",
+    // Only apply overflow hidden on Android to maintain rounded corners
+    // On iOS, we need overflow visible for shadows to show
+    ...(Platform.OS === "android" && {
+      overflow: "hidden",
+    }),
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -737,7 +748,8 @@ const styles = StyleSheet.create({
   },
   settingsCardTitle: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: fonts.regular,
+    fontFamily: fonts.semiBold,
     color: colors.text,
     padding: 20,
     paddingBottom: 3,
@@ -766,21 +778,23 @@ const styles = StyleSheet.create({
   },
   settingsRowLabel: {
     fontSize: 16,
+    fontFamily: fonts.regular,
     fontWeight: "500",
     color: colors.text,
     flex: 1,
   },
   settingsRowLabelToday: {
-    fontWeight: "700",
+    fontFamily: fonts.semiBold,
   },
   settingsRowValue: {
     fontSize: 16,
+    fontFamily: fonts.regular,
     color: colors.textSecondary,
     fontWeight: "400",
     textAlign: "right",
   },
   settingsRowValueToday: {
-    fontWeight: "700",
+    fontFamily: fonts.semiBold,
     color: colors.text,
   },
   settingsRowRight: {
@@ -807,6 +821,7 @@ const styles = StyleSheet.create({
   },
   reviewsTitle: {
     fontSize: 20,
+    fontFamily: fonts.regular,
     fontWeight: "700",
     color: colors.text,
   },
@@ -818,6 +833,7 @@ const styles = StyleSheet.create({
   },
   discoverButtonText: {
     fontSize: 14,
+    fontFamily: fonts.regular,
     fontWeight: "600",
     color: "#fff",
   },
@@ -832,6 +848,7 @@ const styles = StyleSheet.create({
   },
   reviewText: {
     fontSize: 15,
+    fontFamily: fonts.regular,
     color: "#fff",
     lineHeight: 22,
     marginBottom: 12,
@@ -854,6 +871,7 @@ const styles = StyleSheet.create({
   },
   reviewUserName: {
     fontSize: 14,
+    fontFamily: fonts.regular,
     fontWeight: "600",
     color: "#fff",
   },
@@ -863,12 +881,14 @@ const styles = StyleSheet.create({
   },
   reviewRatingText: {
     fontSize: 14,
+    fontFamily: fonts.regular,
     color: colors.text,
     marginLeft: 4,
     fontWeight: "500",
   },
   noReviewsText: {
     fontSize: 14,
+    fontFamily: fonts.regular,
     color: colors.textSecondary,
     textAlign: "center",
     paddingVertical: 20,
@@ -891,6 +911,7 @@ const styles = StyleSheet.create({
   },
   bookNowButtonText: {
     fontSize: 16,
+    fontFamily: fonts.regular,
     fontWeight: "600",
     color: "#fff",
   },
@@ -902,6 +923,7 @@ const styles = StyleSheet.create({
   },
   amenityChip: {
     fontSize: 14,
+    fontFamily: fonts.regular,
     color: "#666",
     backgroundColor: "#E0E0E0",
     paddingHorizontal: 8,
@@ -920,6 +942,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 16,
+    fontFamily: fonts.regular,
     color: colors.textSecondary,
   },
   errorContainer: {
@@ -932,6 +955,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
+    fontFamily: fonts.regular,
     color: colors.error,
     marginBottom: 20,
     textAlign: "center",
@@ -945,6 +969,7 @@ const styles = StyleSheet.create({
   retryButtonText: {
     color: "#fff",
     fontSize: 16,
+    fontFamily: fonts.regular,
     fontWeight: "600",
   },
 });
