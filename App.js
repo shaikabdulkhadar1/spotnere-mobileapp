@@ -412,7 +412,10 @@ export default function App() {
                 onPlacePress={setSelectedPlaceId}
               />
             ) : activeTab === "profile" ? (
-              <ProfileScreen />
+              <ProfileScreen onLoginSuccess={(userData) => {
+                // Handle successful login - user data is stored in auth utility
+                console.log("User logged in:", userData);
+              }} />
             ) : (
               <HomeScreen
                 userCountry={userCountry}

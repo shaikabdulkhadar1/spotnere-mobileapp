@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     // Only apply overflow hidden on Android to maintain rounded corners
     // On iOS, we need overflow visible for shadows to show
     ...(Platform.OS === "android" && {
-      overflow: "hidden",
+    overflow: "hidden",
     }),
     shadowColor: "#000",
     shadowOffset: {
