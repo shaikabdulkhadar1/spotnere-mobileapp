@@ -39,7 +39,7 @@ const generateSalt = async () => {
  * @param {string} password - Plain text password
  * @returns {Promise<string>} Hashed password with salt
  */
-const hashPassword = async (password) => {
+export const hashPassword = async (password) => {
   // Generate a random salt
   const salt = await generateSalt();
   // Hash password with salt multiple times for security
@@ -57,7 +57,7 @@ const hashPassword = async (password) => {
  * @param {string} storedHash - Stored hash in format "salt:hash"
  * @returns {Promise<boolean>} True if password matches
  */
-const verifyPassword = async (password, storedHash) => {
+export const verifyPassword = async (password, storedHash) => {
   if (!storedHash || !storedHash.includes(":")) {
     return false;
   }

@@ -7,12 +7,18 @@ import {
   TouchableOpacity,
   Dimensions,
   Platform,
+  Alert,
+  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../constants/colors";
 import { fonts } from "../constants/fonts";
-import LoginForm from "./LoginForm";
+import LoginForm from "../components/LoginForm";
 import LoginScreen from "./LoginScreen";
+import ManageProfileScreen from "./ManageProfileScreen";
+import PasswordSecurityScreen from "./PasswordSecurityScreen";
+import AboutUsScreen from "./AboutUsScreen";
+import HelpCenterScreen from "./HelpCenterScreen";
 import { getCurrentUser, logout } from "../utils/auth";
 
 const { width } = Dimensions.get("window");
@@ -22,6 +28,12 @@ const ProfileScreen = ({ onLoginSuccess }) => {
   const [userData, setUserData] = useState(null);
   const [showLoginForm, setShowLoginForm] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
+  const [showManageProfile, setShowManageProfile] = useState(false);
+  const [showPasswordSecurity, setShowPasswordSecurity] = useState(false);
+  const [showAboutUs, setShowAboutUs] = useState(false);
+  const [showHelpCenter, setShowHelpCenter] = useState(false);
+  const [showThemeModal, setShowThemeModal] = useState(false);
+  const [selectedTheme, setSelectedTheme] = useState("Light");
 
   useEffect(() => {
     checkAuthStatus();
@@ -111,12 +123,25 @@ const ProfileScreen = ({ onLoginSuccess }) => {
       id: "theme",
       label: "Theme",
       icon: "color-palette-outline",
-      value: "Light",
+      value: selectedTheme,
+    },
+  ];
+
+  const bookingsItems = [
+    {
+      id: "upcoming-bookings",
+      label: "Upcoming Bookings",
+      icon: "calendar-outline",
     },
     {
-      id: "appointments",
-      label: "Appointments",
-      icon: "calendar-outline",
+      id: "past-bookings",
+      label: "Past Bookings",
+      icon: "time-outline",
+    },
+    {
+      id: "cancelled-bookings",
+      label: "Cancelled Bookings",
+      icon: "close-circle-outline",
     },
   ];
 
@@ -128,11 +153,45 @@ const ProfileScreen = ({ onLoginSuccess }) => {
     },
   ];
 
+  const handleMenuItemPress = (itemId) => {
+    switch (itemId) {
+      case "manage-profile":
+        setShowManageProfile(true);
+        break;
+      case "password-security":
+        setShowPasswordSecurity(true);
+        break;
+      case "notifications":
+        // TODO: Implement notifications screen
+        console.log("Notifications clicked");
+        break;
+      case "language":
+        Alert.alert(
+          "Language",
+          "The app is only available in English for now.",
+          [{ text: "OK" }]
+        );
+        break;
+      case "theme":
+        setShowThemeModal(true);
+        break;
+      case "about-us":
+        setShowAboutUs(true);
+        break;
+      case "help-center":
+        setShowHelpCenter(true);
+        break;
+      default:
+        console.log(`Menu item clicked: ${itemId}`);
+    }
+  };
+
   const renderMenuItem = (item, index, total) => (
     <TouchableOpacity
       key={item.id}
       style={[styles.menuItem, index === total - 1 && styles.menuItemLast]}
       activeOpacity={0.7}
+      onPress={() => handleMenuItemPress(item.id)}
     >
       <View style={styles.menuItemLeft}>
         <Ionicons
@@ -149,6 +208,37 @@ const ProfileScreen = ({ onLoginSuccess }) => {
       <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
     </TouchableOpacity>
   );
+
+  // Show help center screen
+  if (showHelpCenter) {
+    return <HelpCenterScreen onBack={() => setShowHelpCenter(false)} />;
+  }
+
+  // Show about us screen
+  if (showAboutUs) {
+    return <AboutUsScreen onBack={() => setShowAboutUs(false)} />;
+  }
+
+  // Show password & security screen
+  if (showPasswordSecurity) {
+    return (
+      <PasswordSecurityScreen onBack={() => setShowPasswordSecurity(false)} />
+    );
+  }
+
+  // Show manage profile screen
+  if (showManageProfile) {
+    return (
+      <ManageProfileScreen
+        userData={userData}
+        onBack={async () => {
+          setShowManageProfile(false);
+          // Refresh user data after returning from edit screen
+          await checkAuthStatus();
+        }}
+      />
+    );
+  }
 
   // Show registration form
   if (showRegisterForm) {
@@ -267,6 +357,16 @@ const ProfileScreen = ({ onLoginSuccess }) => {
         </View>
       </View>
 
+      {/* Bookings Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Bookings</Text>
+        <View style={styles.menuCard}>
+          {bookingsItems.map((item, index) =>
+            renderMenuItem(item, index, bookingsItems.length)
+          )}
+        </View>
+      </View>
+
       {/* Account Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
@@ -313,6 +413,151 @@ const ProfileScreen = ({ onLoginSuccess }) => {
           <Text style={styles.logoutButtonText}>Log Out</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Theme Selection Modal */}
+      <Modal
+        visible={showThemeModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowThemeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Theme</Text>
+              <TouchableOpacity
+                onPress={() => setShowThemeModal(false)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.themeOptions}>
+              <TouchableOpacity
+                style={[
+                  styles.themeOption,
+                  selectedTheme === "Light" && styles.themeOptionSelected,
+                ]}
+                onPress={() => {
+                  setSelectedTheme("Light");
+                  setShowThemeModal(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.themeOptionContent}>
+                  <Ionicons
+                    name="sunny-outline"
+                    size={24}
+                    color={
+                      selectedTheme === "Light"
+                        ? colors.primary
+                        : colors.textSecondary
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.themeOptionText,
+                      selectedTheme === "Light" &&
+                        styles.themeOptionTextSelected,
+                    ]}
+                  >
+                    Light
+                  </Text>
+                </View>
+                {selectedTheme === "Light" && (
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={24}
+                    color={colors.primary}
+                  />
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.themeOption,
+                  selectedTheme === "Dark" && styles.themeOptionSelected,
+                ]}
+                onPress={() => {
+                  setSelectedTheme("Dark");
+                  setShowThemeModal(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.themeOptionContent}>
+                  <Ionicons
+                    name="moon-outline"
+                    size={24}
+                    color={
+                      selectedTheme === "Dark"
+                        ? colors.primary
+                        : colors.textSecondary
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.themeOptionText,
+                      selectedTheme === "Dark" &&
+                        styles.themeOptionTextSelected,
+                    ]}
+                  >
+                    Dark
+                  </Text>
+                </View>
+                {selectedTheme === "Dark" && (
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={24}
+                    color={colors.primary}
+                  />
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.themeOption,
+                  selectedTheme === "System Default" &&
+                    styles.themeOptionSelected,
+                ]}
+                onPress={() => {
+                  setSelectedTheme("System Default");
+                  setShowThemeModal(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.themeOptionContent}>
+                  <Ionicons
+                    name="phone-portrait-outline"
+                    size={24}
+                    color={
+                      selectedTheme === "System Default"
+                        ? colors.primary
+                        : colors.textSecondary
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.themeOptionText,
+                      selectedTheme === "System Default" &&
+                        styles.themeOptionTextSelected,
+                    ]}
+                  >
+                    System Default
+                  </Text>
+                </View>
+                {selectedTheme === "System Default" && (
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={24}
+                    color={colors.primary}
+                  />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -525,6 +770,65 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semiBold,
     color: colors.error,
     marginLeft: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: colors.cardBackground,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: Platform.OS === "ios" ? 40 : 20,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.text,
+    fontFamily: fonts.regular,
+  },
+  themeOptions: {
+    padding: 20,
+  },
+  themeOption: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  themeOptionSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.cardBackground,
+  },
+  themeOptionContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  themeOptionText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginLeft: 12,
+    fontFamily: fonts.regular,
+  },
+  themeOptionTextSelected: {
+    color: colors.text,
+    fontFamily: fonts.semiBold,
   },
 });
 

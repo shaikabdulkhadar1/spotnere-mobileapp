@@ -11,8 +11,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../config/supabase";
-import PlaceCard from "./PlaceCard";
-import SkeletonCard from "./SkeletonCard";
+import PlaceCard from "../components/PlaceCard";
+import SkeletonCard from "../components/SkeletonCard";
 import { colors } from "../constants/colors";
 import { fonts } from "../constants/fonts";
 import { getCachedPlaces, setCachedPlaces } from "../utils/placesCache";

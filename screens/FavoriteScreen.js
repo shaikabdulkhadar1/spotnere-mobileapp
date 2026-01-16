@@ -11,11 +11,16 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../config/supabase";
-import PlaceCard from "./PlaceCard";
-import SkeletonCard from "./SkeletonCard";
+import PlaceCard from "../components/PlaceCard";
+import SkeletonCard from "../components/SkeletonCard";
 import { colors } from "../constants/colors";
 import { fonts } from "../constants/fonts";
 import { getCurrentUser } from "../utils/auth";
+import {
+  getCachedFavorites,
+  setCachedFavorites,
+  clearFavoritesCache,
+} from "../utils/favoritesCache";
 
 const { width, height } = Dimensions.get("window");
 
@@ -47,6 +52,14 @@ const FavoriteScreen = ({ userCountry, onPlacePress }) => {
         return;
       }
 
+      // Try to get cached favorites first
+      const cachedFavorites = await getCachedFavorites(user.id, userCountry);
+      if (cachedFavorites) {
+        setFavoritePlaces(cachedFavorites);
+        setLoading(false);
+        return;
+      }
+
       // Fetch favorite place IDs from user_places table
       const { data: userPlaces, error: userPlacesError } = await supabase
         .from("user_places")
@@ -63,6 +76,8 @@ const FavoriteScreen = ({ userCountry, onPlacePress }) => {
       if (!userPlaces || userPlaces.length === 0) {
         console.log("📌 No favorites found in database");
         setFavoritePlaces([]);
+        // Cache empty result
+        await setCachedFavorites([], user.id, userCountry);
         setLoading(false);
         return;
       }
@@ -89,6 +104,8 @@ const FavoriteScreen = ({ userCountry, onPlacePress }) => {
 
       if (!places || places.length === 0) {
         setFavoritePlaces([]);
+        // Cache empty result
+        await setCachedFavorites([], user.id, userCountry);
         setLoading(false);
         return;
       }
@@ -104,6 +121,9 @@ const FavoriteScreen = ({ userCountry, onPlacePress }) => {
         imageUri: place.banner_image_link || place.image || place.photo_url,
         isSmall: false,
       }));
+
+      // Cache the formatted places
+      await setCachedFavorites(formatted, user.id, userCountry);
 
       setFavoritePlaces(formatted);
     } catch (err) {
@@ -216,7 +236,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    paddingTop: 100,
+    paddingTop: 80,
     paddingBottom: 70,
   },
   scrollContentCentered: {

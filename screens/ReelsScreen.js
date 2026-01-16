@@ -10,34 +10,34 @@ import {
   Image,
 } from "react-native";
 import { supabase } from "../config/supabase";
-import PlaceCard from "./PlaceCard";
-import SkeletonCard from "./SkeletonCard";
+import PlaceCard from "../components/PlaceCard";
+import SkeletonCard from "../components/SkeletonCard";
 import { colors } from "../constants/colors";
 import { fonts } from "../constants/fonts";
-import { getTrips } from "../utils/trips";
+import { getReels } from "../utils/reels";
 
 const { width, height } = Dimensions.get("window");
 
-const TripsScreen = ({ userCountry, onPlacePress }) => {
-  const [trips, setTrips] = useState([]);
+const ReelsScreen = ({ userCountry, onPlacePress }) => {
+  const [reels, setReels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetchTrips();
+    fetchReels();
   }, [userCountry]);
 
-  const fetchTrips = async () => {
+  const fetchReels = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Get trip place IDs from local storage
-      const tripIds = await getTrips();
+      // Get reel place IDs from local storage
+      const reelIds = await getReels();
 
-      if (!tripIds || tripIds.length === 0) {
-        console.log("✈️ No trips found");
-        setTrips([]);
+      if (!reelIds || reelIds.length === 0) {
+        console.log("🎬 No reels found");
+        setReels([]);
         setLoading(false);
         return;
       }
@@ -47,8 +47,8 @@ const TripsScreen = ({ userCountry, onPlacePress }) => {
         throw new Error("Supabase client is not initialized");
       }
 
-      // Fetch trip places from database
-      let query = supabase.from("places").select("*").in("id", tripIds);
+      // Fetch reel places from database
+      let query = supabase.from("places").select("*").in("id", reelIds);
 
       // Optionally filter by country
       if (userCountry) {
@@ -58,14 +58,14 @@ const TripsScreen = ({ userCountry, onPlacePress }) => {
       const { data: places, error: fetchError } = await query;
 
       if (fetchError) {
-        console.error("❌ Error fetching trips:", fetchError);
-        throw new Error(`Failed to fetch trips: ${fetchError.message}`);
+        console.error("❌ Error fetching reels:", fetchError);
+        throw new Error(`Failed to fetch reels: ${fetchError.message}`);
       }
 
-      console.log(`✈️ Found ${places?.length || 0} trips`);
+      console.log(`🎬 Found ${places?.length || 0} reels`);
 
       if (!places || places.length === 0) {
-        setTrips([]);
+        setReels([]);
         setLoading(false);
         return;
       }
@@ -82,10 +82,10 @@ const TripsScreen = ({ userCountry, onPlacePress }) => {
         isSmall: false,
       }));
 
-      setTrips(formatted);
+      setReels(formatted);
     } catch (err) {
-      console.error("Error fetching trips:", err);
-      setError(err.message || "Failed to load trips");
+      console.error("Error fetching reels:", err);
+      setError(err.message || "Failed to load reels");
     } finally {
       setLoading(false);
     }
@@ -114,7 +114,7 @@ const TripsScreen = ({ userCountry, onPlacePress }) => {
     return (
       <View style={styles.container}>
         <Text style={styles.errorText}>Error: {error}</Text>
-        <TouchableOpacity onPress={fetchTrips} style={styles.retryButton}>
+        <TouchableOpacity onPress={fetchReels} style={styles.retryButton}>
           <Text style={styles.retryText}>Tap to retry</Text>
         </TouchableOpacity>
       </View>
@@ -125,44 +125,44 @@ const TripsScreen = ({ userCountry, onPlacePress }) => {
     <ScrollView
       style={styles.scrollView}
       contentContainerStyle={
-        trips.length === 0 ? styles.scrollContentCentered : styles.scrollContent
+        reels.length === 0 ? styles.scrollContentCentered : styles.scrollContent
       }
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.allPlacesContainer}>
-        {trips.length === 0 ? (
+        {reels.length === 0 ? (
           <View style={styles.emptyContainer}>
             <View style={styles.emptyIconContainer}>
               <Image
-                source={require("../assets/categoryImages/tripImg.png")}
+                source={require("../assets/categoryImages/reelsImg.png")}
                 style={styles.emptyIconImage}
                 resizeMode="contain"
               />
             </View>
-            <Text style={styles.emptyTitle}>No trips yet</Text>
+            <Text style={styles.emptyTitle}>No reels yet</Text>
             <Text style={styles.emptyText}>
-              Start planning your next adventure and your trips will appear here
+              Discover amazing places through video reels
             </Text>
           </View>
         ) : (
           <>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Your Trips</Text>
+              <Text style={styles.sectionTitle}>Your Reels</Text>
               <Text style={styles.placeCount}>
-                {trips.length} {trips.length === 1 ? "trip" : "trips"}
+                {reels.length} {reels.length === 1 ? "reel" : "reels"}
               </Text>
             </View>
             <View style={styles.gridContainer}>
-              {trips.map((trip, index) => (
-                <View key={trip.id || index} style={styles.gridCard}>
+              {reels.map((reel, index) => (
+                <View key={reel.id || index} style={styles.gridCard}>
                   <PlaceCard
-                    title={trip.title}
-                    price={trip.price}
-                    rating={trip.ratingString}
-                    imageUri={trip.imageUri}
+                    title={reel.title}
+                    price={reel.price}
+                    rating={reel.ratingString}
+                    imageUri={reel.imageUri}
                     showBadge={false}
                     isSmall={false}
-                    placeId={trip.id}
+                    placeId={reel.id}
                     onPress={onPlacePress}
                   />
                 </View>
@@ -274,4 +274,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default TripsScreen;
+export default ReelsScreen;

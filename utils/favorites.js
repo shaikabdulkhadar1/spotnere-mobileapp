@@ -4,6 +4,7 @@
  */
 
 import { supabase } from "../config/supabase";
+import { clearFavoritesCache } from "./favoritesCache";
 
 // In-memory storage for favorites
 let favoritesCache = [];
@@ -194,6 +195,10 @@ export const saveFavoriteToDatabase = async (userId, placeId) => {
     }
 
     console.log("✅ Favorite saved to database:", { userId, placeId });
+    
+    // Clear cache to force refresh on next load
+    await clearFavoritesCache(userId);
+    
     return {
       success: true,
       error: null,
@@ -242,6 +247,10 @@ export const removeFavoriteFromDatabase = async (userId, placeId) => {
     }
 
     console.log("✅ Favorite removed from database:", { userId, placeId });
+    
+    // Clear cache to force refresh on next load
+    await clearFavoritesCache(userId);
+    
     return {
       success: true,
       error: null,

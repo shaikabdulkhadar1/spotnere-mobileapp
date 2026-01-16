@@ -10,8 +10,8 @@ import {
   Alert,
 } from "react-native";
 import { supabase } from "../config/supabase";
-import PlaceCard from "./PlaceCard";
-import SkeletonCard from "./SkeletonCard";
+import PlaceCard from "../components/PlaceCard";
+import SkeletonCard from "../components/SkeletonCard";
 import { colors } from "../constants/colors";
 import { fonts } from "../constants/fonts";
 
