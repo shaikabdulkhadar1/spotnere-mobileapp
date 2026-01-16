@@ -1,15 +1,24 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   StyleSheet,
   Text,
   View,
   TouchableOpacity,
   Platform,
+  Animated,
 } from "react-native";
 import { Image as ExpoImage } from "expo-image";
 import { Dimensions } from "react-native";
+import { BlurView } from "expo-blur";
+import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../constants/colors";
 import { fonts } from "../constants/fonts";
+import { getCurrentUser } from "../utils/auth";
+import {
+  saveFavoriteToDatabase,
+  removeFavoriteFromDatabase,
+  isFavoriteInDatabase,
+} from "../utils/favorites";
 
 const { width } = Dimensions.get("window");
 
@@ -25,6 +34,71 @@ const PlaceCard = ({
   onPress,
   onImageLoad,
 }) => {
+  const [isFavorited, setIsFavorited] = useState(false);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  // Check favorite status on mount
+  useEffect(() => {
+    const checkFavoriteStatus = async () => {
+      if (placeId) {
+        const user = await getCurrentUser();
+        if (user && user.id) {
+          const favorited = await isFavoriteInDatabase(user.id, placeId);
+          setIsFavorited(favorited);
+        }
+      }
+    };
+    checkFavoriteStatus();
+  }, [placeId]);
+
+  const handleFavoritePress = async () => {
+    if (!placeId) {
+      console.warn("Place ID is required to favorite");
+      return;
+    }
+
+    const user = await getCurrentUser();
+    if (!user || !user.id) {
+      console.warn("User must be logged in to favorite places");
+      return;
+    }
+
+    const newFavoriteState = !isFavorited;
+    setIsFavorited(newFavoriteState);
+
+    // Heart pop animation
+    Animated.sequence([
+      Animated.spring(scaleAnim, {
+        toValue: 1.3,
+        friction: 3,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 3,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Save or remove from database
+    if (newFavoriteState) {
+      const result = await saveFavoriteToDatabase(user.id, placeId);
+      if (!result.success) {
+        // Revert state if save failed
+        setIsFavorited(false);
+        console.error("Failed to save favorite:", result.error);
+      }
+    } else {
+      const result = await removeFavoriteFromDatabase(user.id, placeId);
+      if (!result.success) {
+        // Revert state if remove failed
+        setIsFavorited(true);
+        console.error("Failed to remove favorite:", result.error);
+      }
+    }
+  };
   return (
     <TouchableOpacity
       style={[
@@ -69,8 +143,31 @@ const PlaceCard = ({
         )}
 
         {/* Heart Icon */}
-        <TouchableOpacity style={styles.heartButton}>
-          <Text style={styles.heartIcon}>♡</Text>
+        <TouchableOpacity
+          style={styles.heartButton}
+          activeOpacity={0.7}
+          onPress={handleFavoritePress}
+        >
+          <BlurView
+            intensity={18}
+            tint="light"
+            style={styles.heartBlurContainer}
+          >
+            <Animated.View
+              style={[
+                styles.heartIconContainer,
+                {
+                  transform: [{ scale: scaleAnim }],
+                },
+              ]}
+            >
+              <Ionicons
+                name={isFavorited ? "heart" : "heart-outline"}
+                size={14}
+                color={isFavorited ? "#FF3B30" : "#000000"}
+              />
+            </Animated.View>
+          </BlurView>
         </TouchableOpacity>
       </View>
 
@@ -154,8 +251,11 @@ const styles = StyleSheet.create({
     left: 12,
     backgroundColor: colors.badgeBackground,
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
+    paddingVertical: 6,
+    borderRadius: 15,
+    height: 30,
+    justifyContent: "center",
+    alignItems: "center",
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -175,14 +275,19 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 12,
     right: 12,
-    width: 32,
-    height: 32,
+    width: 30,
+    height: 30,
     justifyContent: "center",
     alignItems: "center",
   },
-  heartIcon: {
-    fontSize: 20,
-    color: colors.secondary,
+  heartBlurContainer: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: colors.badgeBackground,
+    overflow: "hidden",
   },
   cardContent: {
     padding: 12,

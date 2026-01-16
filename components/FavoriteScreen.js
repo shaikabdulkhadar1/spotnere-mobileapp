@@ -15,7 +15,7 @@ import PlaceCard from "./PlaceCard";
 import SkeletonCard from "./SkeletonCard";
 import { colors } from "../constants/colors";
 import { fonts } from "../constants/fonts";
-import { getFavorites, isFavorite } from "../utils/favorites";
+import { getCurrentUser } from "../utils/auth";
 
 const { width, height } = Dimensions.get("window");
 
@@ -33,22 +33,44 @@ const FavoriteScreen = ({ userCountry, onPlacePress }) => {
       setLoading(true);
       setError(null);
 
-      // Get favorite place IDs from local storage
-      const favoriteIds = await getFavorites();
-
-      if (!favoriteIds || favoriteIds.length === 0) {
-        console.log("📌 No favorites found");
-        setFavoritePlaces([]);
-        setLoading(false);
-        return;
-      }
-
       // Check if supabase is available
       if (!supabase) {
         throw new Error("Supabase client is not initialized");
       }
 
-      // Fetch favorite places from database
+      // Get current user
+      const user = await getCurrentUser();
+      if (!user || !user.id) {
+        console.log("📌 User not logged in");
+        setFavoritePlaces([]);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch favorite place IDs from user_places table
+      const { data: userPlaces, error: userPlacesError } = await supabase
+        .from("user_places")
+        .select("fav_place_id")
+        .eq("user_id", user.id);
+
+      if (userPlacesError) {
+        console.error("❌ Error fetching user favorites:", userPlacesError);
+        throw new Error(
+          `Failed to fetch favorites: ${userPlacesError.message}`
+        );
+      }
+
+      if (!userPlaces || userPlaces.length === 0) {
+        console.log("📌 No favorites found in database");
+        setFavoritePlaces([]);
+        setLoading(false);
+        return;
+      }
+
+      // Extract place IDs from user_places
+      const favoriteIds = userPlaces.map((up) => up.fav_place_id);
+
+      // Fetch favorite places from places table
       let query = supabase.from("places").select("*").in("id", favoriteIds);
 
       // Optionally filter by country
@@ -71,7 +93,7 @@ const FavoriteScreen = ({ userCountry, onPlacePress }) => {
         return;
       }
 
-      // Format places data
+      // Format places data (same format as HomeScreen.js)
       const formatted = places.map((place) => ({
         id: place.id,
         title: place.title || place.name || place.place_name || "Place",
@@ -153,10 +175,9 @@ const FavoriteScreen = ({ userCountry, onPlacePress }) => {
         ) : (
           <>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Your Favorites</Text>
-              <Text style={styles.placeCount}>
-                {favoritePlaces.length}{" "}
-                {favoritePlaces.length === 1 ? "place" : "places"}
+              <Text style={styles.sectionTitle}>
+                Your Favorites ({favoritePlaces.length}{" "}
+                {favoritePlaces.length === 1 ? "place" : "places"})
               </Text>
             </View>
             <View style={styles.gridContainer}>
@@ -195,7 +216,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    paddingBottom: 70, // Extra padding to ensure content is visible above bottom nav
+    paddingTop: 100,
+    paddingBottom: 70,
   },
   scrollContentCentered: {
     flexGrow: 1,
@@ -207,14 +229,13 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 24,
+    position: "relative",
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 24,
+    fontWeight: "700",
     color: colors.text,
     fontFamily: fonts.regular,
   },

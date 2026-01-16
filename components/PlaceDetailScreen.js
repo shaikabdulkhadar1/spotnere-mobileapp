@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -9,14 +9,22 @@ import {
   ActivityIndicator,
   Platform,
   Linking,
+  Animated,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
 import { supabase } from "../config/supabase";
 import { colors } from "../constants/colors";
 import { fonts } from "../constants/fonts";
+import { getCurrentUser } from "../utils/auth";
+import {
+  saveFavoriteToDatabase,
+  removeFavoriteFromDatabase,
+  isFavoriteInDatabase,
+} from "../utils/favorites";
 
 const { width, height } = Dimensions.get("window");
 
@@ -25,13 +33,76 @@ const PlaceDetailScreen = ({ placeId, onClose }) => {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isFavorited, setIsFavorited] = useState(false);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (placeId) {
       fetchPlaceDetails();
       fetchReviews();
+      checkFavoriteStatus();
     }
   }, [placeId]);
+
+  // Check favorite status on mount
+  const checkFavoriteStatus = async () => {
+    if (placeId) {
+      const user = await getCurrentUser();
+      if (user && user.id) {
+        const favorited = await isFavoriteInDatabase(user.id, placeId);
+        setIsFavorited(favorited);
+      }
+    }
+  };
+
+  const handleFavoritePress = async () => {
+    if (!placeId) {
+      console.warn("Place ID is required to favorite");
+      return;
+    }
+
+    const user = await getCurrentUser();
+    if (!user || !user.id) {
+      console.warn("User must be logged in to favorite places");
+      return;
+    }
+
+    const newFavoriteState = !isFavorited;
+    setIsFavorited(newFavoriteState);
+
+    // Heart pop animation
+    Animated.sequence([
+      Animated.spring(scaleAnim, {
+        toValue: 1.3,
+        friction: 3,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 3,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Save or remove from database
+    if (newFavoriteState) {
+      const result = await saveFavoriteToDatabase(user.id, placeId);
+      if (!result.success) {
+        // Revert state if save failed
+        setIsFavorited(false);
+        console.error("Failed to save favorite:", result.error);
+      }
+    } else {
+      const result = await removeFavoriteFromDatabase(user.id, placeId);
+      if (!result.success) {
+        // Revert state if remove failed
+        setIsFavorited(true);
+        console.error("Failed to remove favorite:", result.error);
+      }
+    }
+  };
 
   const fetchPlaceDetails = async () => {
     try {
@@ -303,10 +374,33 @@ const PlaceDetailScreen = ({ placeId, onClose }) => {
           {/* Header with Back Button and Heart */}
           <View style={styles.header}>
             <TouchableOpacity style={styles.backButton} onPress={onClose}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
+              <Ionicons name="arrow-back" size={24} color="#000" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
-              <Ionicons name="heart-outline" size={24} color="#fff" />
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={handleFavoritePress}
+              activeOpacity={0.7}
+            >
+              <BlurView
+                intensity={18}
+                tint="light"
+                style={styles.heartBlurContainer}
+              >
+                <Animated.View
+                  style={[
+                    styles.heartIconContainer,
+                    {
+                      transform: [{ scale: scaleAnim }],
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name={isFavorited ? "heart" : "heart-outline"}
+                    size={18}
+                    color={isFavorited ? "#FF3B30" : "#000000"}
+                  />
+                </Animated.View>
+              </BlurView>
             </TouchableOpacity>
           </View>
 
@@ -630,7 +724,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    backgroundColor: colors.badgeBackground,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -638,7 +732,19 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  heartBlurContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: colors.badgeBackground,
+    overflow: "hidden",
+  },
+  heartIconContainer: {
     justifyContent: "center",
     alignItems: "center",
   },
