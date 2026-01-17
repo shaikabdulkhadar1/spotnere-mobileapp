@@ -28,12 +28,25 @@ const MapScreen = ({ userCountry, onPlacePress, onBack }) => {
   const [selectedPlaceId, setSelectedPlaceId] = useState(null);
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
+  const [tracksViewChanges, setTracksViewChanges] = useState(
+    Platform.OS === "android"
+  );
   const mapRef = useRef(null);
 
   useEffect(() => {
     requestLocationPermission();
     fetchPlaces();
   }, [userCountry]);
+
+  useEffect(() => {
+    // Disable tracksViewChanges after initial render for better performance
+    if (Platform.OS === "android" && places.length > 0 && tracksViewChanges) {
+      const timer = setTimeout(() => {
+        setTracksViewChanges(false);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [places.length, tracksViewChanges]);
 
   const requestLocationPermission = async () => {
     try {
@@ -93,6 +106,8 @@ const MapScreen = ({ userCountry, onPlacePress, onBack }) => {
           id: place.id,
           title: place.title || place.name || place.place_name || "Place",
           price: `$${place.avg_price || 0} per person`,
+          priceValue:
+            place.avg_price || place.price_per_night || place.price || 0,
           rating: parseFloat(place.rating || place.average_rating || 0) || 0,
           ratingString:
             place.rating?.toString() || place.average_rating?.toString() || "0",
@@ -106,6 +121,10 @@ const MapScreen = ({ userCountry, onPlacePress, onBack }) => {
         }));
 
       setPlaces(formatted);
+      // Reset tracksViewChanges when places update on Android
+      if (Platform.OS === "android") {
+        setTracksViewChanges(true);
+      }
     } catch (err) {
       console.error("Error fetching places:", err);
       setError(err.message || "Failed to load places");
@@ -117,6 +136,11 @@ const MapScreen = ({ userCountry, onPlacePress, onBack }) => {
   const handlePlaceSelect = (place) => {
     setSelectedPlaceId(place.id);
     setSelectedPlace(place);
+    // Re-enable tracksViewChanges briefly when selecting to ensure update
+    if (Platform.OS === "android" && !tracksViewChanges) {
+      setTracksViewChanges(true);
+      setTimeout(() => setTracksViewChanges(false), 500);
+    }
     if (mapRef.current && place.latitude && place.longitude) {
       mapRef.current.animateToRegion(
         {
@@ -214,20 +238,43 @@ const MapScreen = ({ userCountry, onPlacePress, onBack }) => {
             showsUserLocation={!!userLocation}
             showsMyLocationButton={true}
           >
-            {places.map((place) => (
-              <Marker
-                key={place.id}
-                coordinate={{
-                  latitude: place.latitude,
-                  longitude: place.longitude,
-                }}
-                title={place.title}
-                pinColor={
-                  selectedPlaceId === place.id ? colors.primary : colors.accent
-                }
-                onPress={() => handlePlaceSelect(place)}
-              />
-            ))}
+            {places.map((place) => {
+              const isSelected = selectedPlaceId === place.id;
+              const priceText = `$${Math.round(place.priceValue)}`;
+              return (
+                <Marker
+                  key={`marker-${place.id}`}
+                  coordinate={{
+                    latitude: place.latitude,
+                    longitude: place.longitude,
+                  }}
+                  onPress={() => handlePlaceSelect(place)}
+                  anchor={{ x: 0.5, y: 1 }}
+                  tracksViewChanges={tracksViewChanges}
+                >
+                  <View
+                    style={[
+                      styles.pricePill,
+                      isSelected && styles.pricePillSelected,
+                    ]}
+                    collapsable={false}
+                    pointerEvents="none"
+                  >
+                    <Text
+                      style={[
+                        styles.pricePillText,
+                        isSelected && styles.pricePillTextSelected,
+                      ]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit={true}
+                      minimumFontScale={0.8}
+                    >
+                      {priceText}
+                    </Text>
+                  </View>
+                </Marker>
+              );
+            })}
           </MapView>
         )}
       </View>
@@ -487,6 +534,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     fontFamily: fonts.bold,
+  },
+  pricePill: {
+    backgroundColor: "#fff",
+    borderRadius: 999, // true pill always
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#000",
+    minHeight: 28, // helps consistent shape
+  },
+  pricePillSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  pricePillText: {
+    fontSize: 14,
+    fontWeight: "700",
+    fontFamily: fonts.bold,
+    color: "#000",
+  },
+  pricePillTextSelected: {
+    color: "#fff",
   },
 });
 
