@@ -400,18 +400,25 @@ export default function App() {
               <FavoriteScreen
                 userCountry={userCountry}
                 onPlacePress={setSelectedPlaceId}
+                onBack={() => setActiveTab("home")}
               />
             ) : activeTab === "map" ? (
-              <MapScreen />
+              <MapScreen
+                userCountry={userCountry}
+                onPlacePress={setSelectedPlaceId}
+                onBack={() => setActiveTab("home")}
+              />
             ) : activeTab === "trips" ? (
               <TripsScreen
                 userCountry={userCountry}
                 onPlacePress={setSelectedPlaceId}
+                onBack={() => setActiveTab("home")}
               />
             ) : activeTab === "reels" ? (
               <ReelsScreen
                 userCountry={userCountry}
                 onPlacePress={setSelectedPlaceId}
+                onBack={() => setActiveTab("home")}
               />
             ) : activeTab === "profile" ? (
               <ProfileScreen
@@ -419,6 +426,7 @@ export default function App() {
                   // Handle successful login - user data is stored in auth utility
                   console.log("User logged in:", userData);
                 }}
+                onBack={() => setActiveTab("home")}
               />
             ) : (
               <HomeScreen

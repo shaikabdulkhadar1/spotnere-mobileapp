@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Image,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../config/supabase";
 import PlaceCard from "../components/PlaceCard";
 import SkeletonCard from "../components/SkeletonCard";
@@ -18,7 +19,7 @@ import { getTrips } from "../utils/trips";
 
 const { width, height } = Dimensions.get("window");
 
-const TripsScreen = ({ userCountry, onPlacePress }) => {
+const TripsScreen = ({ userCountry, onPlacePress, onBack }) => {
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -147,10 +148,30 @@ const TripsScreen = ({ userCountry, onPlacePress }) => {
         ) : (
           <>
             <View style={styles.sectionHeader}>
+              {onBack && (
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={onBack}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="arrow-back" size={24} color={colors.text} />
+                </TouchableOpacity>
+              )}
               <Text style={styles.sectionTitle}>Your Trips</Text>
-              <Text style={styles.placeCount}>
-                {trips.length} {trips.length === 1 ? "trip" : "trips"}
-              </Text>
+              <View style={styles.rightSection}>
+                {onBack && (
+                  <TouchableOpacity
+                    style={styles.homeButton}
+                    onPress={onBack}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="home" size={24} color={colors.text} />
+                  </TouchableOpacity>
+                )}
+                <Text style={styles.placeCount}>
+                  {trips.length} {trips.length === 1 ? "trip" : "trips"}
+                </Text>
+              </View>
             </View>
             <View style={styles.gridContainer}>
               {trips.map((trip, index) => (
@@ -204,6 +225,21 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
+    position: "relative",
+  },
+  backButton: {
+    position: "absolute",
+    left: 0,
+    padding: 4,
+    zIndex: 1,
+  },
+  homeButton: {
+    padding: 4,
+    marginRight: 8,
+  },
+  rightSection: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   sectionTitle: {
     fontSize: 18,

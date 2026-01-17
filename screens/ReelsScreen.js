@@ -18,7 +18,7 @@ import { getReels } from "../utils/reels";
 
 const { width, height } = Dimensions.get("window");
 
-const ReelsScreen = ({ userCountry, onPlacePress }) => {
+const ReelsScreen = ({ userCountry, onPlacePress, onBack }) => {
   const [reels, setReels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -147,10 +147,30 @@ const ReelsScreen = ({ userCountry, onPlacePress }) => {
         ) : (
           <>
             <View style={styles.sectionHeader}>
+              {onBack && (
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={onBack}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="arrow-back" size={24} color={colors.text} />
+                </TouchableOpacity>
+              )}
               <Text style={styles.sectionTitle}>Your Reels</Text>
-              <Text style={styles.placeCount}>
-                {reels.length} {reels.length === 1 ? "reel" : "reels"}
-              </Text>
+              <View style={styles.rightSection}>
+                {onBack && (
+                  <TouchableOpacity
+                    style={styles.homeButton}
+                    onPress={onBack}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="home" size={24} color={colors.text} />
+                  </TouchableOpacity>
+                )}
+                <Text style={styles.placeCount}>
+                  {reels.length} {reels.length === 1 ? "reel" : "reels"}
+                </Text>
+              </View>
             </View>
             <View style={styles.gridContainer}>
               {reels.map((reel, index) => (
@@ -204,6 +224,21 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
+    position: "relative",
+  },
+  backButton: {
+    position: "absolute",
+    left: 0,
+    padding: 4,
+    zIndex: 1,
+  },
+  homeButton: {
+    padding: 4,
+    marginRight: 8,
+  },
+  rightSection: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   sectionTitle: {
     fontSize: 18,

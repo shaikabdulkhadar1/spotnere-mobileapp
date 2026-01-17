@@ -23,7 +23,7 @@ import { getCurrentUser, logout } from "../utils/auth";
 
 const { width } = Dimensions.get("window");
 
-const ProfileScreen = ({ onLoginSuccess }) => {
+const ProfileScreen = ({ onLoginSuccess, onBack }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userData, setUserData] = useState(null);
   const [showLoginForm, setShowLoginForm] = useState(false);
@@ -266,6 +266,15 @@ const ProfileScreen = ({ onLoginSuccess }) => {
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Profile</Text>
+          {onBack && (
+            <TouchableOpacity
+              style={styles.homeButton}
+              onPress={onBack}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="home" size={24} color={colors.text} />
+            </TouchableOpacity>
+          )}
         </View>
         <LoginForm
           onLoginSuccess={handleLogin}
@@ -287,7 +296,25 @@ const ProfileScreen = ({ onLoginSuccess }) => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
+          {onBack && (
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={onBack}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={24} color={colors.text} />
+            </TouchableOpacity>
+          )}
           <Text style={styles.headerTitle}>Profile</Text>
+          {onBack && (
+            <TouchableOpacity
+              style={styles.homeButton}
+              onPress={onBack}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="home" size={24} color={colors.text} />
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.loggedOutContainer}>
@@ -334,7 +361,25 @@ const ProfileScreen = ({ onLoginSuccess }) => {
     >
       {/* Header */}
       <View style={styles.header}>
+        {onBack && (
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={onBack}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
+        )}
         <Text style={styles.headerTitle}>Profile</Text>
+        {onBack && (
+          <TouchableOpacity
+            style={styles.homeButton}
+            onPress={onBack}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="home" size={24} color={colors.text} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Profile Summary Section */}
@@ -580,9 +625,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   header: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     marginBottom: 24,
     position: "relative",
+  },
+  homeButton: {
+    position: "absolute",
+    right: 0,
+    padding: 4,
+    zIndex: 1,
   },
   backButton: {
     position: "absolute",

@@ -24,7 +24,7 @@ import {
 
 const { width, height } = Dimensions.get("window");
 
-const FavoriteScreen = ({ userCountry, onPlacePress }) => {
+const FavoriteScreen = ({ userCountry, onPlacePress, onBack }) => {
   const [favoritePlaces, setFavoritePlaces] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -195,10 +195,25 @@ const FavoriteScreen = ({ userCountry, onPlacePress }) => {
         ) : (
           <>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                Your Favorites ({favoritePlaces.length}{" "}
-                {favoritePlaces.length === 1 ? "place" : "places"})
-              </Text>
+              {onBack && (
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={onBack}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="arrow-back" size={24} color={colors.text} />
+                </TouchableOpacity>
+              )}
+              <Text style={styles.sectionTitle}>Your Favorites</Text>
+              {onBack && (
+                <TouchableOpacity
+                  style={styles.homeButton}
+                  onPress={onBack}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="home" size={24} color={colors.text} />
+                </TouchableOpacity>
+              )}
             </View>
             <View style={styles.gridContainer}>
               {favoritePlaces.map((place, index) => (
@@ -249,15 +264,31 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   sectionHeader: {
+    flexDirection: "row",
     alignItems: "center",
     marginBottom: 24,
     position: "relative",
+    paddingHorizontal: 16,
+  },
+  backButton: {
+    position: "absolute",
+    left: 16,
+    padding: 4,
+    zIndex: 1,
+  },
+  homeButton: {
+    position: "absolute",
+    right: 16,
+    padding: 4,
+    zIndex: 1,
   },
   sectionTitle: {
     fontSize: 24,
     fontWeight: "700",
     color: colors.text,
     fontFamily: fonts.regular,
+    flex: 1,
+    textAlign: "center",
   },
   placeCount: {
     fontSize: 14,
