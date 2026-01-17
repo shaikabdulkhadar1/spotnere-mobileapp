@@ -22,6 +22,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "./config/supabase";
 import HomeScreen from "./screens/HomeScreen";
 import FavoriteScreen from "./screens/FavoriteScreen";
+import MapScreen from "./screens/MapScreen";
 import TripsScreen from "./screens/TripsScreen";
 import ReelsScreen from "./screens/ReelsScreen";
 import BottomNavBar from "./components/BottomNavBar";
@@ -110,7 +111,6 @@ export default function App() {
     "Parkinsans-ExtraBold": require("./assets/fonts/Parkinsans-ExtraBold.ttf"),
   });
 
-  const username = "User"; // Replace with actual username
   const [city, setCity] = useState("Your City"); // Will be updated from location
   const [activeTab, setActiveTab] = useState("home");
   const [selectedPlaceId, setSelectedPlaceId] = useState(null);
@@ -401,6 +401,8 @@ export default function App() {
                 userCountry={userCountry}
                 onPlacePress={setSelectedPlaceId}
               />
+            ) : activeTab === "map" ? (
+              <MapScreen />
             ) : activeTab === "trips" ? (
               <TripsScreen
                 userCountry={userCountry}
@@ -412,10 +414,12 @@ export default function App() {
                 onPlacePress={setSelectedPlaceId}
               />
             ) : activeTab === "profile" ? (
-              <ProfileScreen onLoginSuccess={(userData) => {
-                // Handle successful login - user data is stored in auth utility
-                console.log("User logged in:", userData);
-              }} />
+              <ProfileScreen
+                onLoginSuccess={(userData) => {
+                  // Handle successful login - user data is stored in auth utility
+                  console.log("User logged in:", userData);
+                }}
+              />
             ) : (
               <HomeScreen
                 userCountry={userCountry}

@@ -18,8 +18,9 @@ const { width } = Dimensions.get("window");
 
 const BottomNavBar = ({ activeTab, onTabChange }) => {
   const tabs = [
-    { id: "home", label: "Home", icon: "home" },
+    { id: "home", icon: "home" },
     { id: "favorite", label: "Favorite", icon: "heart" },
+    { id: "map", label: "Map", icon: "map" },
     { id: "trips", label: "Trips", icon: "airplane" },
     { id: "reels", label: "Reels", icon: "play-circle" },
     { id: "profile", label: "Profile", icon: "person" },
@@ -28,6 +29,7 @@ const BottomNavBar = ({ activeTab, onTabChange }) => {
   // Initialize animation values for the active background indicator
   const homeIndicator = useRef(new Animated.Value(1)).current;
   const favoriteIndicator = useRef(new Animated.Value(0)).current;
+  const mapIndicator = useRef(new Animated.Value(0)).current;
   const tripsIndicator = useRef(new Animated.Value(0)).current;
   const reelsIndicator = useRef(new Animated.Value(0)).current;
   const profileIndicator = useRef(new Animated.Value(0)).current;
@@ -38,6 +40,8 @@ const BottomNavBar = ({ activeTab, onTabChange }) => {
         return homeIndicator;
       case "favorite":
         return favoriteIndicator;
+      case "map":
+        return mapIndicator;
       case "trips":
         return tripsIndicator;
       case "reels":
@@ -81,23 +85,23 @@ const BottomNavBar = ({ activeTab, onTabChange }) => {
             // Interpolate the dimensions of the active background (rounded rectangle)
             const backgroundWidth = indicator.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, 75], // Width of the rounded background
+              outputRange: [0, 50], // Width of the rounded background
             });
 
             const backgroundHeight = indicator.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, 55], // Height of the rounded background
+              outputRange: [0, 50], // Height of the rounded background
             });
 
             // Center the background by translating by negative half of width/height
             const backgroundTranslateX = indicator.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, -42.5], // Negative half of max width (85/2)
+              outputRange: [0, -25], // Negative half of max width (50/2)
             });
 
             const backgroundTranslateY = indicator.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, -27.5], // Negative half of max height (55/2)
+              outputRange: [0, -25], // Negative half of max height (50/2)
             });
 
             const backgroundOpacity = indicator.interpolate({
@@ -129,21 +133,10 @@ const BottomNavBar = ({ activeTab, onTabChange }) => {
                   />
                   <View style={styles.navItemContent}>
                     <Ionicons
-                      name={tab.icon}
-                      size={22}
+                      name={isActive ? tab.icon : `${tab.icon}-outline`}
+                      size={24}
                       color={isActive ? "#000" : "#fff"}
-                      style={styles.navIcon}
                     />
-                    <Text
-                      style={[
-                        styles.navLabel,
-                        {
-                          color: isActive ? "#000" : "#fff",
-                        },
-                      ]}
-                    >
-                      {tab.label}
-                    </Text>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -210,9 +203,9 @@ const styles = StyleSheet.create({
   activeTabBackground: {
     position: "absolute",
     top: "50%",
-    left: "57%",
+    left: "50%",
     backgroundColor: "rgba(240, 240, 240, 0.95)",
-    borderRadius: 28,
+    borderRadius: 25,
     zIndex: 0,
   },
   navItemContent: {
@@ -222,14 +215,6 @@ const styles = StyleSheet.create({
     position: "relative",
     width: "100%",
     height: "100%",
-  },
-  navIcon: {
-    marginBottom: 4,
-  },
-  navLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    fontFamily: fonts.regular,
   },
 });
 

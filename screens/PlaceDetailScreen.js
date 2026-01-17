@@ -25,6 +25,7 @@ import {
   removeFavoriteFromDatabase,
   isFavoriteInDatabase,
 } from "../utils/favorites";
+import BookingModal from "../components/BookingModal";
 
 const { width, height } = Dimensions.get("window");
 
@@ -34,6 +35,7 @@ const PlaceDetailScreen = ({ placeId, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isFavorited, setIsFavorited] = useState(false);
+  const [showBookingModal, setShowBookingModal] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -363,9 +365,9 @@ const PlaceDetailScreen = ({ placeId, onClose }) => {
           <LinearGradient
             colors={[
               "transparent",
-              "rgba(220, 226, 229, 0.1)",
-              "rgba(220, 226, 229, 0.65)",
-              "#fff",
+              "rgba(248, 249, 244, 0.1)",
+              "rgba(248, 249, 244, 0.65)",
+              colors.background,
             ]}
             locations={[0, 0.3, 0.7, 1]}
             style={styles.imageGradientOverlay}
@@ -674,10 +676,20 @@ const PlaceDetailScreen = ({ placeId, onClose }) => {
 
       {/* Bottom CTA Button */}
       <View style={styles.bottomButtonContainer}>
-        <TouchableOpacity style={styles.bookNowButton}>
+        <TouchableOpacity
+          style={styles.bookNowButton}
+          onPress={() => setShowBookingModal(true)}
+        >
           <Text style={styles.bookNowButtonText}>Book now</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Booking Modal */}
+      <BookingModal
+        visible={showBookingModal}
+        onClose={() => setShowBookingModal(false)}
+        placeDetails={placeDetails}
+      />
     </View>
   );
 };
