@@ -22,6 +22,7 @@ const BookingModal = ({ visible, onClose, placeDetails }) => {
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
   const [guests, setGuests] = useState("");
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   // Available time slots
   const timeSlots = [
@@ -94,8 +95,32 @@ const BookingModal = ({ visible, onClose, placeDetails }) => {
     );
   };
 
+  const calculateTotal = () => {
+    if (!placeDetails || !selectedDate || !selectedTimeSlot || !guests) {
+      return { subtotal: 0, serviceFee: 0, total: 0 };
+    }
+
+    const basePrice =
+      placeDetails.price_per_night ||
+      placeDetails.avg_price ||
+      placeDetails.price ||
+      0;
+
+    // Parse number of guests
+    const numGuests = parseInt(guests, 10) || 1;
+
+    // Since we only have single date selection, assume 1 night
+    const nights = 1;
+    const subtotal = parseFloat(basePrice) * nights * numGuests;
+    const serviceFee = subtotal * 0.1; // 10% service fee
+    const total = subtotal + serviceFee;
+
+    return { subtotal, serviceFee, total };
+  };
+
   const days = getDaysInMonth(currentMonth);
   const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const bookingTotal = calculateTotal();
 
   const BlurContainer = Platform.OS === "ios" ? BlurView : View;
   const blurProps =
@@ -298,39 +323,117 @@ const BookingModal = ({ visible, onClose, placeDetails }) => {
 
             {/* Pay and Book Button */}
             <View style={styles.footer}>
+              {/* Breakdown Toggle */}
               <TouchableOpacity
-                style={[
-                  styles.payButton,
-                  (!selectedDate || !selectedTimeSlot || !guests) &&
-                    styles.payButtonDisabled,
-                ]}
+                style={styles.breakdownToggle}
+                onPress={() => setShowBreakdown(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.breakdownToggleText}>Price breakdown</Text>
+                <Ionicons
+                  name="chevron-up"
+                  size={20}
+                  color={colors.textSecondary}
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.payButton}
                 onPress={() => {
-                  if (selectedDate && selectedTimeSlot && guests) {
-                    // TODO: Implement payment and booking logic
-                    console.log("Pay and Book pressed", {
-                      date: selectedDate,
-                      timeSlot: selectedTimeSlot,
-                      guests: guests,
-                    });
-                  }
+                  // TODO: Implement payment and booking logic
+                  console.log("Pay and Book pressed", {
+                    date: selectedDate,
+                    timeSlot: selectedTimeSlot,
+                    guests: guests,
+                    total: bookingTotal.total,
+                  });
                 }}
-                disabled={!selectedDate || !selectedTimeSlot || !guests}
                 activeOpacity={0.8}
               >
-                <Text
-                  style={[
-                    styles.payButtonText,
-                    (!selectedDate || !selectedTimeSlot || !guests) &&
-                      styles.payButtonTextDisabled,
-                  ]}
-                >
-                  Pay and Book
-                </Text>
+                <View style={styles.payButtonContent}>
+                  <Text style={styles.payButtonText}>Pay and Book</Text>
+                  <Text style={styles.payButtonAmount}>
+                    ${bookingTotal.total.toFixed(2)}
+                  </Text>
+                </View>
               </TouchableOpacity>
             </View>
           </View>
         </BlurContainer>
       </View>
+
+      {/* Breakdown Modal */}
+      <Modal
+        visible={showBreakdown}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowBreakdown(false)}
+      >
+        <View style={styles.breakdownModalOverlay}>
+          <BlurContainer {...blurProps} style={styles.breakdownBlurOverlay}>
+            <TouchableOpacity
+              style={styles.breakdownModalBackdrop}
+              activeOpacity={1}
+              onPress={() => setShowBreakdown(false)}
+            >
+              <View style={styles.breakdownModalContainer}>
+                <TouchableOpacity
+                  activeOpacity={1}
+                  onPress={(e) => e.stopPropagation()}
+                >
+                  <View style={styles.breakdownModalContent}>
+                    {/* Header */}
+                    <View style={styles.breakdownHeader}>
+                      <Text style={styles.breakdownHeaderTitle}>
+                        Price breakdown
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => setShowBreakdown(false)}
+                        style={styles.breakdownCloseButton}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="close" size={24} color={colors.text} />
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Breakdown Details */}
+                    <View style={styles.breakdownDetails}>
+                      <View style={styles.breakdownRow}>
+                        <Text style={styles.breakdownLabel}>
+                          $
+                          {placeDetails?.price_per_night ||
+                            placeDetails?.avg_price ||
+                            placeDetails?.price ||
+                            0}{" "}
+                          × {parseInt(guests, 10) || 1} guest
+                          {parseInt(guests, 10) !== 1 ? "s" : ""}
+                        </Text>
+                        <Text style={styles.breakdownValue}>
+                          ${bookingTotal.subtotal.toFixed(2)}
+                        </Text>
+                      </View>
+                      <View style={styles.breakdownRow}>
+                        <Text style={styles.breakdownLabel}>Service fee</Text>
+                        <Text style={styles.breakdownValue}>
+                          ${bookingTotal.serviceFee.toFixed(2)}
+                        </Text>
+                      </View>
+                      <View
+                        style={[styles.breakdownRow, styles.breakdownTotalRow]}
+                      >
+                        <Text style={styles.breakdownTotalLabel}>Total</Text>
+                        <Text style={styles.breakdownTotalValue}>
+                          ${bookingTotal.total.toFixed(2)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </BlurContainer>
+        </View>
+      </Modal>
     </Modal>
   );
 };
@@ -491,6 +594,7 @@ const styles = StyleSheet.create({
   timeSlotButtonSelected: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
+    fontFamily: fonts.semiBold,
     opacity: 1,
   },
   timeSlotButtonDisabled: {
@@ -498,8 +602,8 @@ const styles = StyleSheet.create({
   },
   timeSlotText: {
     fontSize: 14,
-    fontFamily: fonts.regular,
-    color: colors.textSecondary,
+    fontFamily: fonts.semiBold,
+    color: colors.text,
   },
   timeSlotTextEnabled: {
     color: colors.text,
@@ -549,11 +653,11 @@ const styles = StyleSheet.create({
   guestsInput: {
     flex: 1,
     fontSize: 16,
-    fontFamily: fonts.regular,
+    fontFamily: fonts.semiBold,
     color: colors.text,
   },
   guestsInputDisabled: {
-    color: colors.textSecondary,
+    color: colors.text,
   },
   footer: {
     paddingHorizontal: 20,
@@ -563,6 +667,104 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     backgroundColor: colors.cardBackground,
   },
+  breakdownToggle: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    marginBottom: 12,
+  },
+  breakdownToggleText: {
+    fontSize: 14,
+    fontFamily: fonts.semiBold,
+    color: colors.textSecondary,
+  },
+  breakdownModalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  breakdownBlurOverlay: {
+    flex: 1,
+    width: "100%",
+  },
+  breakdownModalBackdrop: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  breakdownModalContainer: {
+    width: "100%",
+    maxWidth: 400,
+  },
+  breakdownModalContent: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 16,
+  },
+  breakdownHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  breakdownHeaderTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    fontFamily: fonts.bold,
+    color: colors.text,
+  },
+  breakdownCloseButton: {
+    padding: 4,
+  },
+  breakdownDetails: {
+    paddingTop: 8,
+  },
+  breakdownRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  breakdownTotalRow: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    marginBottom: 0,
+  },
+  breakdownLabel: {
+    fontSize: 14,
+    fontFamily: fonts.regular,
+    color: colors.textSecondary,
+  },
+  breakdownValue: {
+    fontSize: 14,
+    fontFamily: fonts.regular,
+    color: colors.text,
+  },
+  breakdownTotalLabel: {
+    fontSize: 16,
+    fontFamily: fonts.bold,
+    color: colors.text,
+  },
+  breakdownTotalValue: {
+    fontSize: 16,
+    fontFamily: fonts.bold,
+    color: colors.primary,
+  },
   payButton: {
     backgroundColor: colors.primary,
     borderRadius: 12,
@@ -570,9 +772,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  payButtonDisabled: {
-    backgroundColor: colors.surface,
-    opacity: 0.5,
+  payButtonContent: {
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
   },
   payButtonText: {
     color: "#fff",
@@ -580,8 +785,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontFamily: fonts.bold,
   },
-  payButtonTextDisabled: {
-    color: colors.textSecondary,
+  payButtonAmount: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+    fontFamily: fonts.bold,
   },
 });
 
