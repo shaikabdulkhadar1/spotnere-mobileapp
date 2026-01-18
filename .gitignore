@@ -41,8 +41,7 @@ yarn-error.*
 /ios
 /android
 
-# Supabase config (contains sensitive credentials)
-config/supabase.js
+
 
 
 # Mac generated files

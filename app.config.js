@@ -8,7 +8,6 @@ export default {
     name: "spotnere-mobileapp",
     slug: "spotnere-mobileapp",
     version: "1.0.0",
-    sdkVersion: "54.0.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "light",
@@ -18,6 +17,7 @@ export default {
       backgroundColor: "#ffffff",
     },
     ios: {
+      bundleIdentifier: "com.spotnere.mobileapp",
       supportsTablet: true,
       infoPlist: {
         NSLocationWhenInUseUsageDescription:
@@ -27,6 +27,8 @@ export default {
       },
     },
     android: {
+      package: "com.spotnere.mobileapp",
+      versionCode: 1,
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#ffffff",
@@ -38,8 +40,11 @@ export default {
     },
     extra: {
       supabaseUrl: process.env.SUPABASE_URL,
-      supabaseAnonKey: process.env.SUPABASE_KEY,
+      supabaseAnonKey: process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY,
       countryStateCityApi: process.env.COUNTRY_STATE_CITY_API,
+      eas: {
+        projectId: "e9ab45c4-9ea3-48b1-9b4a-8d65bb2f9661",
+      },
     },
   },
 };
