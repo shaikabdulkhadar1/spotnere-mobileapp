@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from "react-native";
-import Constants from "expo-constants";
+import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { supabase } from "../config/supabase";
 import { colors } from "../constants/colors";
 import { fonts } from "../constants/fonts";
@@ -19,35 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Location from "expo-location";
 
-// Conditionally import MapLibre to handle cases where native module isn't available
-let MapView, PointAnnotation;
-try {
-  const maplibre = require("@maplibre/maplibre-react-native");
-  MapView = maplibre.MapView;
-  PointAnnotation = maplibre.PointAnnotation;
-} catch (error) {
-  console.error("Failed to load MapLibre native module:", error);
-  MapView = null;
-  PointAnnotation = null;
-}
-
 const { width, height } = Dimensions.get("window");
-
-// Get MapTiler API key from config
-const getMapTilerStyleURL = () => {
-  const apiKey =
-    Constants.expoConfig?.extra?.maptilerApiKey ||
-    process.env.MAPTILER_API_KEY ||
-    "";
-  
-  if (!apiKey) {
-    console.warn("⚠️ MapTiler API key not found. Using demo tiles.");
-    return "https://demotiles.maplibre.org/style.json";
-  }
-  
-  // Using MapTiler Streets style - you can change to: satellite, hybrid, outdoor, winter, basic
-  return `https://api.maptiler.com/maps/streets-v2/style.json?key=${apiKey}`;
-};
 
 const MapScreen = ({ userCountry, onPlacePress, onBack }) => {
   const [places, setPlaces] = useState([]);
@@ -56,6 +28,9 @@ const MapScreen = ({ userCountry, onPlacePress, onBack }) => {
   const [selectedPlaceId, setSelectedPlaceId] = useState(null);
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
+  const [tracksViewChanges, setTracksViewChanges] = useState(
+    Platform.OS === "android",
+  );
   const mapRef = useRef(null);
 
   useEffect(() => {
@@ -63,6 +38,15 @@ const MapScreen = ({ userCountry, onPlacePress, onBack }) => {
     fetchPlaces();
   }, [userCountry]);
 
+  useEffect(() => {
+    // Disable tracksViewChanges after initial render for better performance
+    if (Platform.OS === "android" && places.length > 0 && tracksViewChanges) {
+      const timer = setTimeout(() => {
+        setTracksViewChanges(false);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [places.length, tracksViewChanges]);
 
   const requestLocationPermission = async () => {
     try {
@@ -137,6 +121,10 @@ const MapScreen = ({ userCountry, onPlacePress, onBack }) => {
         }));
 
       setPlaces(formatted);
+      // Reset tracksViewChanges when places update on Android
+      if (Platform.OS === "android") {
+        setTracksViewChanges(true);
+      }
     } catch (err) {
       console.error("Error fetching places:", err);
       setError(err.message || "Failed to load places");
@@ -148,12 +136,21 @@ const MapScreen = ({ userCountry, onPlacePress, onBack }) => {
   const handlePlaceSelect = (place) => {
     setSelectedPlaceId(place.id);
     setSelectedPlace(place);
+    // Re-enable tracksViewChanges briefly when selecting to ensure update
+    if (Platform.OS === "android" && !tracksViewChanges) {
+      setTracksViewChanges(true);
+      setTimeout(() => setTracksViewChanges(false), 500);
+    }
     if (mapRef.current && place.latitude && place.longitude) {
-      mapRef.current.setCamera({
-        centerCoordinate: [place.longitude, place.latitude],
-        zoomLevel: 12,
-        animationDuration: 500,
-      });
+      mapRef.current.animateToRegion(
+        {
+          latitude: place.latitude,
+          longitude: place.longitude,
+          latitudeDelta: 0.15,
+          longitudeDelta: 0.15,
+        },
+        500,
+      );
     }
   };
 
@@ -169,24 +166,30 @@ const MapScreen = ({ userCountry, onPlacePress, onBack }) => {
     handleCloseModal();
   };
 
-  const getInitialCamera = () => {
+  const getInitialRegion = () => {
     if (places.length > 0) {
       const firstPlace = places[0];
       return {
-        centerCoordinate: [firstPlace.longitude, firstPlace.latitude],
-        zoomLevel: 10,
+        latitude: firstPlace.latitude,
+        longitude: firstPlace.longitude,
+        latitudeDelta: 0.5,
+        longitudeDelta: 0.5,
       };
     }
     if (userLocation) {
       return {
-        centerCoordinate: [userLocation.longitude, userLocation.latitude],
-        zoomLevel: 10,
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        latitudeDelta: 0.5,
+        longitudeDelta: 0.5,
       };
     }
     // Default to a central location (you can change this)
     return {
-      centerCoordinate: [-122.4324, 37.78825],
-      zoomLevel: 10,
+      latitude: 37.78825,
+      longitude: -122.4324,
+      latitudeDelta: 0.5,
+      longitudeDelta: 0.5,
     };
   };
 
@@ -227,46 +230,36 @@ const MapScreen = ({ userCountry, onPlacePress, onBack }) => {
           <View style={styles.mapLoadingContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
           </View>
-        ) : !MapView ? (
-          <View style={styles.mapLoadingContainer}>
-            <Text style={styles.errorText}>
-              Map library not available. Please rebuild the app:
-              {"\n"}npx expo run:android --device
-            </Text>
-          </View>
         ) : (
           <MapView
+            provider={PROVIDER_GOOGLE}
             ref={mapRef}
             style={styles.map}
-            styleURL={getMapTilerStyleURL()}
-            logoEnabled={true}
-            attributionEnabled={true}
-            onDidFinishLoadingMap={() => {
-              const camera = getInitialCamera();
-              if (mapRef.current && camera.centerCoordinate) {
-                mapRef.current.setCamera({
-                  centerCoordinate: camera.centerCoordinate,
-                  zoomLevel: camera.zoomLevel,
-                  animationDuration: 0,
-                });
-              }
-            }}
+            initialRegion={getInitialRegion()}
+            showsUserLocation={!!userLocation}
+            showsMyLocationButton={true}
           >
             {places.map((place) => {
               const isSelected = selectedPlaceId === place.id;
               const priceText = `$${Math.round(place.priceValue)}`;
               return (
-                <PointAnnotation
+                <Marker
                   key={`marker-${place.id}`}
-                  id={`marker-${place.id}`}
-                  coordinate={[place.longitude, place.latitude]}
-                  onSelected={() => handlePlaceSelect(place)}
+                  coordinate={{
+                    latitude: place.latitude,
+                    longitude: place.longitude,
+                  }}
+                  onPress={() => handlePlaceSelect(place)}
+                  anchor={{ x: 0.5, y: 1 }}
+                  tracksViewChanges={tracksViewChanges}
                 >
                   <View
                     style={[
                       styles.pricePill,
                       isSelected && styles.pricePillSelected,
                     ]}
+                    collapsable={false}
+                    pointerEvents="none"
                   >
                     <Text
                       style={[
@@ -280,20 +273,9 @@ const MapScreen = ({ userCountry, onPlacePress, onBack }) => {
                       {priceText}
                     </Text>
                   </View>
-                </PointAnnotation>
+                </Marker>
               );
             })}
-            {userLocation && (
-              <PointAnnotation
-                id="user-location"
-                coordinate={[userLocation.longitude, userLocation.latitude]}
-              >
-                <View style={styles.userLocationMarker}>
-                  <View style={styles.userLocationPulse} />
-                  <View style={styles.userLocationDot} />
-                </View>
-              </PointAnnotation>
-            )}
           </MapView>
         )}
       </View>
@@ -556,7 +538,7 @@ const styles = StyleSheet.create({
   },
   pricePill: {
     backgroundColor: "#fff",
-    borderRadius: 999, // true pill always
+    borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
     alignSelf: "flex-start",
@@ -565,7 +547,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderColor: "#000",
-    minHeight: 28, // helps consistent shape
+    minHeight: 28,
   },
   pricePillSelected: {
     backgroundColor: colors.primary,
@@ -579,28 +561,6 @@ const styles = StyleSheet.create({
   },
   pricePillTextSelected: {
     color: "#fff",
-  },
-  userLocationMarker: {
-    width: 20,
-    height: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  userLocationPulse: {
-    position: "absolute",
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.primary,
-    opacity: 0.3,
-  },
-  userLocationDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.primary,
-    borderWidth: 2,
-    borderColor: "#fff",
   },
 });
 

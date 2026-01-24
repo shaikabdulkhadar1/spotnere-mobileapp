@@ -19,10 +19,6 @@ export default {
       resizeMode: "contain",
       backgroundColor: "#ffffff",
     },
-    plugins: [
-      "./plugins/withPodfileProject.js",
-      "@maplibre/maplibre-react-native",
-    ],
     ios: {
       bundleIdentifier: "com.spotnere.mobileapp",
       supportsTablet: true,
@@ -50,7 +46,6 @@ export default {
       supabaseAnonKey:
         process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY,
       countryStateCityApi: process.env.COUNTRY_STATE_CITY_API,
-      maptilerApiKey: process.env.MAPTILER_API_KEY,
       eas: {
         projectId: "b8b05f81-ba37-4e6f-a0f8-fe47a2ad058b",
       },

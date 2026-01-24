@@ -7,12 +7,7 @@
     "start": "npx expo start",
     "android": "npx expo start --android",
     "ios": "npx expo start --ios",
-    "web": "npx expo start --web",
-    "clean:macos": "./scripts/clean-macos-files.sh",
-    "prebuild": "npm run clean:macos && npx expo prebuild",
-    "prebuild:ios": "npm run clean:macos && npx expo prebuild --platform ios",
-    "prebuild:android": "npm run clean:macos && npx expo prebuild --platform android",
-    "postinstall": "npm run clean:macos"
+    "web": "npx expo start --web"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -32,7 +27,8 @@
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
     "react-country-state-city": "^1.1.12",
-    "react-native": "0.81.5"
+    "react-native": "0.81.5",
+    "react-native-maps": "1.20.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
