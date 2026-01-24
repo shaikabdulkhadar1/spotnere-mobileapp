@@ -46,6 +46,8 @@ yarn-error.*
 
 # Mac generated files
 .DS_Store
+._*
+*.DS_Store
 
 # Windows generated files
 Thumbs.db

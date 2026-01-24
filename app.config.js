@@ -3,9 +3,12 @@
  * This file allows us to use environment variables from .env file
  */
 
+require("dotenv").config();
+
 export default {
   expo: {
     name: "spotnere-mobileapp",
+    owner: "shaikabdulkhadar571",
     slug: "spotnere-mobileapp",
     version: "1.0.0",
     orientation: "portrait",
@@ -16,6 +19,10 @@ export default {
       resizeMode: "contain",
       backgroundColor: "#ffffff",
     },
+    plugins: [
+      "./plugins/withPodfileProject.js",
+      "@maplibre/maplibre-react-native",
+    ],
     ios: {
       bundleIdentifier: "com.spotnere.mobileapp",
       supportsTablet: true,
@@ -40,10 +47,12 @@ export default {
     },
     extra: {
       supabaseUrl: process.env.SUPABASE_URL,
-      supabaseAnonKey: process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY,
+      supabaseAnonKey:
+        process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY,
       countryStateCityApi: process.env.COUNTRY_STATE_CITY_API,
+      maptilerApiKey: process.env.MAPTILER_API_KEY,
       eas: {
-        projectId: "e9ab45c4-9ea3-48b1-9b4a-8d65bb2f9661",
+        projectId: "b8b05f81-ba37-4e6f-a0f8-fe47a2ad058b",
       },
     },
   },
