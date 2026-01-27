@@ -17,10 +17,15 @@ import { fonts } from "../constants/fonts";
 
 const { width } = Dimensions.get("window");
 
-const TOP_K = 20; // Top 20 places to display initially
+const TOP_K = 50; // Top 50 places to display initially
 const LOAD_MORE_COUNT = 20; // Number of additional places to load
 
-const HomeScreen = ({ userCountry, activeCategory, onPlacePress }) => {
+const HomeScreen = ({
+  userCountry,
+  activeCategory,
+  onPlacePress,
+  filters = { sortBy: "rating", rating: 0, category: "All", subCategory: "" },
+}) => {
   const [places, setPlaces] = useState([]);
   const [allPlacesData, setAllPlacesData] = useState([]); // Store all fetched places
   const [displayedCount, setDisplayedCount] = useState(TOP_K); // Number of places currently displayed
@@ -31,11 +36,11 @@ const HomeScreen = ({ userCountry, activeCategory, onPlacePress }) => {
     if (userCountry) {
       fetchTopPlaces();
     }
-  }, [userCountry, activeCategory]);
+  }, [userCountry, activeCategory, filters]);
 
   // Efficient top-K selection: Get top K items without full sorting
   // Uses a "keep top K" algorithm - O(n * k) instead of O(n log n)
-  // where k is the number of items we need (20) and n is total items
+  // where k is the number of items we need (50) and n is total items
   const getTopK = (items, k, compareFn) => {
     if (items.length === 0) return [];
     if (items.length <= k) {
@@ -78,6 +83,30 @@ const HomeScreen = ({ userCountry, activeCategory, onPlacePress }) => {
   // Helper: Get top K by rating (descending - highest first)
   const getTopKByRating = (items, k = TOP_K) => {
     return getTopK(items, k, (a, b) => b.rating - a.rating);
+  };
+
+  // Helper: Sort by different criteria
+  const sortPlaces = (items, sortBy) => {
+    const sorted = [...items];
+    switch (sortBy) {
+      case "rating":
+        return sorted.sort((a, b) => b.rating - a.rating);
+      case "price":
+        // Extract numeric price from string like "$50 per person"
+        return sorted.sort((a, b) => {
+          const priceA =
+            parseFloat(a.price?.replace(/[^0-9.]/g, "") || "0") || 0;
+          const priceB =
+            parseFloat(b.price?.replace(/[^0-9.]/g, "") || "0") || 0;
+          return priceA - priceB; // Low to high
+        });
+      case "distance":
+        // For distance, we'll sort by rating as fallback since we don't have distance data
+        // In a real app, you'd use actual distance calculations
+        return sorted.sort((a, b) => b.rating - a.rating);
+      default:
+        return sorted.sort((a, b) => b.rating - a.rating);
+    }
   };
 
   const fetchTopPlaces = async () => {
@@ -127,27 +156,59 @@ const HomeScreen = ({ userCountry, activeCategory, onPlacePress }) => {
           place.rating?.toString() || place.average_rating?.toString() || "0",
         imageUri: place.banner_image_link || place.image || place.photo_url,
         category: place.category || "", // Store category for filtering
+        subCategory: place.sub_category || place.subCategory || "", // Store sub-category for filtering
         isSmall: false,
       }));
 
       // Filter by category if not "All"
       let filteredPlaces = placesWithRating;
-      if (activeCategory && activeCategory !== "All") {
-        filteredPlaces = placesWithRating.filter((place) => {
+      
+      // Apply category filter (from filters or activeCategory for backward compatibility)
+      const categoryFilter = filters?.category || activeCategory;
+      if (categoryFilter && categoryFilter !== "All") {
+        filteredPlaces = filteredPlaces.filter((place) => {
           const placeCategory = (place.category || "").toLowerCase();
-          const selectedCategory = activeCategory.toLowerCase();
+          const selectedCategory = categoryFilter.toLowerCase();
           return placeCategory === selectedCategory;
         });
         console.log(
-          `🔍 Filtered by category "${activeCategory}": ${filteredPlaces.length} places`
+          `🔍 Filtered by category "${categoryFilter}": ${filteredPlaces.length} places`
         );
       }
 
-      // Use top-K selection to get top 20 places by rating
-      const topPlaces = getTopKByRating(filteredPlaces, TOP_K);
+      // Filter by sub-category if provided
+      if (filters?.subCategory && filters.subCategory !== "") {
+        filteredPlaces = filteredPlaces.filter((place) => {
+          const placeSubCategory = (place.subCategory || "").toLowerCase();
+          const selectedSubCategory = filters.subCategory.toLowerCase();
+          return placeSubCategory === selectedSubCategory;
+        });
+        console.log(
+          `🔍 Filtered by sub-category "${filters.subCategory}": ${filteredPlaces.length} places`
+        );
+      }
 
-      // Store filtered places data for "Load More" functionality
-      setAllPlacesData(filteredPlaces);
+      // Filter by rating if provided
+      if (filters?.rating && filters.rating > 0) {
+        filteredPlaces = filteredPlaces.filter((place) => {
+          return place.rating >= filters.rating;
+        });
+        console.log(
+          `🔍 Filtered by rating "${filters.rating}+": ${filteredPlaces.length} places`
+        );
+      }
+
+      // Sort places based on sortBy filter
+      const sortedPlaces = sortPlaces(filteredPlaces, filters?.sortBy || "rating");
+
+      // Use top-K selection to get top 50 places
+      const topPlaces =
+        sortedPlaces.length <= TOP_K
+          ? sortedPlaces
+          : sortedPlaces.slice(0, TOP_K);
+
+      // Store sorted and filtered places data for "Load More" functionality
+      setAllPlacesData(sortedPlaces);
 
       // Add showBadge to first 3 places
       const formatted = topPlaces.map((place, index) => ({
@@ -179,9 +240,8 @@ const HomeScreen = ({ userCountry, activeCategory, onPlacePress }) => {
       return;
     }
 
-    // Get next batch of places (sorted by rating)
-    const sortedPlaces = [...allPlacesData].sort((a, b) => b.rating - a.rating);
-    const nextBatch = sortedPlaces.slice(
+    // Get next batch of places (already sorted based on filters)
+    const nextBatch = allPlacesData.slice(
       displayedCount,
       displayedCount + LOAD_MORE_COUNT
     );

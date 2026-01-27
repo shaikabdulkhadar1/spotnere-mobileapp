@@ -8,6 +8,8 @@ import {
   Dimensions,
   TouchableOpacity,
   Image,
+  Platform,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../config/supabase";
@@ -94,85 +96,121 @@ const TripsScreen = ({ userCountry, onPlacePress, onBack }) => {
 
   if (loading) {
     return (
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-      >
-        <View style={styles.allPlacesContainer}>
-          <View style={styles.gridContainer}>
-            {Array.from({ length: 6 }).map((_, index) => (
-              <View key={`skeleton-${index}`} style={styles.gridCard}>
-                <SkeletonCard />
-              </View>
-            ))}
-          </View>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={onBack}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Your Trips</Text>
+          <TouchableOpacity
+            style={styles.homeButton}
+            onPress={onBack}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="home" size={24} color={colors.text} />
+          </TouchableOpacity>
         </View>
-      </ScrollView>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+        >
+          <View style={styles.allPlacesContainer}>
+            <View style={styles.gridContainer}>
+              {Array.from({ length: 6 }).map((_, index) => (
+                <View key={`skeleton-${index}`} style={styles.gridCard}>
+                  <SkeletonCard />
+                </View>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
+      </View>
     );
   }
 
   if (error) {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>Error: {error}</Text>
-        <TouchableOpacity onPress={fetchTrips} style={styles.retryButton}>
-          <Text style={styles.retryText}>Tap to retry</Text>
-        </TouchableOpacity>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={onBack}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Your Trips</Text>
+          <TouchableOpacity
+            style={styles.homeButton}
+            onPress={onBack}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="home" size={24} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Error: {error}</Text>
+          <TouchableOpacity onPress={fetchTrips} style={styles.retryButton}>
+            <Text style={styles.retryText}>Tap to retry</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.scrollView}
-      contentContainerStyle={
-        trips.length === 0 ? styles.scrollContentCentered : styles.scrollContent
-      }
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.allPlacesContainer}>
-        {trips.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <View style={styles.emptyIconContainer}>
-              <Image
-                source={require("../assets/categoryImages/tripImg.png")}
-                style={styles.emptyIconImage}
-                resizeMode="contain"
-              />
-            </View>
-            <Text style={styles.emptyTitle}>No trips yet</Text>
-            <Text style={styles.emptyText}>
-              Start planning your next adventure and your trips will appear here
-            </Text>
-          </View>
-        ) : (
-          <>
-            <View style={styles.sectionHeader}>
-              {onBack && (
-                <TouchableOpacity
-                  style={styles.backButton}
-                  onPress={onBack}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="arrow-back" size={24} color={colors.text} />
-                </TouchableOpacity>
-              )}
-              <Text style={styles.sectionTitle}>Your Trips</Text>
-              <View style={styles.rightSection}>
-                {onBack && (
-                  <TouchableOpacity
-                    style={styles.homeButton}
-                    onPress={onBack}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="home" size={24} color={colors.text} />
-                  </TouchableOpacity>
-                )}
-                <Text style={styles.placeCount}>
-                  {trips.length} {trips.length === 1 ? "trip" : "trips"}
-                </Text>
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={onBack}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Your Trips</Text>
+        <TouchableOpacity
+          style={styles.homeButton}
+          onPress={onBack}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="home" size={24} color={colors.text} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={
+          trips.length === 0
+            ? styles.scrollContentCentered
+            : styles.scrollContent
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.allPlacesContainer}>
+          {trips.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconContainer}>
+                <Image
+                  source={require("../assets/categoryImages/tripImg.png")}
+                  style={styles.emptyIconImage}
+                  resizeMode="contain"
+                />
               </View>
+              <Text style={styles.emptyTitle}>No trips yet</Text>
+              <Text style={styles.emptyText}>
+                Start planning your next adventure and your trips will appear
+                here
+              </Text>
             </View>
+          ) : (
             <View style={styles.gridContainer}>
               {trips.map((trip, index) => (
                 <View key={trip.id || index} style={styles.gridCard}>
@@ -189,20 +227,43 @@ const TripsScreen = ({ userCountry, onPlacePress, onBack }) => {
                 </View>
               ))}
             </View>
-          </>
-        )}
-      </View>
-    </ScrollView>
+          )}
+        </View>
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
     backgroundColor: colors.background,
-    padding: 20,
+  },
+  header: {
+    paddingTop:
+      Platform.OS === "ios" ? 80 : (StatusBar.currentHeight || 0) + 50,
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: 10,
+    backgroundColor: colors.background,
+  },
+  backButton: {
+    padding: 4,
+    zIndex: 1,
+  },
+  homeButton: {
+    padding: 4,
+    zIndex: 1,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    fontFamily: fonts.bold,
+    color: colors.text,
+    flex: 1,
+    textAlign: "center",
   },
   scrollView: {
     flex: 1,
@@ -220,38 +281,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
   },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
-    position: "relative",
-  },
-  backButton: {
-    position: "absolute",
-    left: 0,
-    padding: 4,
-    zIndex: 1,
-  },
-  homeButton: {
-    padding: 4,
-    marginRight: 8,
-  },
-  rightSection: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: colors.text,
-    fontFamily: fonts.regular,
-  },
-  placeCount: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: "400",
-    fontFamily: fonts.regular,
+    padding: 20,
   },
   gridContainer: {
     flexDirection: "row",
@@ -283,7 +317,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 12,
     textAlign: "center",
-    fontFamily: fonts.regular,
+    fontFamily: fonts.semiBold,
   },
   emptyText: {
     fontSize: 16,

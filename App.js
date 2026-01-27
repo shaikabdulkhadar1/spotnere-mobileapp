@@ -14,6 +14,8 @@ import {
   ScrollView,
   TextInput,
   Image,
+  Modal,
+  Animated,
 } from "react-native";
 import { useState, useEffect, useRef } from "react";
 import { useFonts } from "expo-font";
@@ -115,6 +117,75 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("home");
   const [selectedPlaceId, setSelectedPlaceId] = useState(null);
   const [activeCategory, setActiveCategory] = useState("All");
+  const [showFilterModal, setShowFilterModal] = useState(false);
+
+  // Filter state (temporary - for modal)
+  const [selectedSortBy, setSelectedSortBy] = useState("rating");
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [selectedRating, setSelectedRating] = useState(0);
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [selectedSubCategory, setSelectedSubCategory] = useState("");
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showSubCategoryDropdown, setShowSubCategoryDropdown] = useState(false);
+
+  // Applied filters (actual filters being used)
+  const [appliedFilters, setAppliedFilters] = useState({
+    sortBy: "rating",
+    rating: 0,
+    category: "All",
+    subCategory: "",
+  });
+
+  const slideAnim = useRef(new Animated.Value(height)).current;
+
+  // Sub-categories mapping based on image
+  const subCategories = {
+    All: [],
+    Sports: [
+      "Cricket",
+      "Racquet games",
+      "Football",
+      "Basket ball",
+      "Volly ball",
+      "Golf",
+      "Bowling",
+      "Snooker",
+      "Aiming Games",
+      "VR Games",
+      "Paintball",
+      "Go Carting",
+      "Trampolin",
+      "Cycling",
+    ],
+    Adventure: [
+      "Water Amusement",
+      "Jungle Safari",
+      "Para Gliding",
+      "Para Motoring",
+      "Trekking",
+      "Ziplining",
+      "Horse Riding",
+    ],
+    Parks: ["Water Amusement", "Family Park", "Zoological park", "Kids park"],
+    Staycation: ["Farm House", "Resorts", "5S Villa's"],
+    Tickets: [
+      "Football Match",
+      "Cricket Match",
+      "Hockey Match",
+      "Snooker Match",
+      "Tennis Match",
+      "Kabaddi Match",
+      "IPL Tickets",
+    ],
+    Exclusive: [
+      "Scuba Diving",
+      "Sky Diving",
+      "Hot Air Ballon",
+      "Disney Land",
+      "Ferrari World",
+      "Mount Everest Climbing",
+    ],
+  };
 
   // Category navigation data
   const categories = [
@@ -214,7 +285,7 @@ export default function App() {
         Alert.alert(
           "Location Permission",
           "Location permission is required to show nearby places. Please enable it in settings.",
-          [{ text: "OK" }]
+          [{ text: "OK" }],
         );
         setError("Location permission denied");
         setLoading(false);
@@ -317,19 +388,41 @@ export default function App() {
           <View style={styles.topSection}>
             {/* Search Bar */}
             <View style={styles.searchBarWrapper}>
-              <View style={styles.searchBarContainer}>
-                <Ionicons
-                  name="search"
-                  size={20}
-                  color="#717171"
-                  style={styles.searchIcon}
-                />
-                <TextInput
-                  style={styles.searchBarInput}
-                  placeholder="Start typing to search"
-                  placeholderTextColor="#717171"
-                  editable={false}
-                />
+              <View style={styles.searchBarRow}>
+                <View style={styles.searchBarContainer}>
+                  <Ionicons
+                    name="search"
+                    size={20}
+                    color="#717171"
+                    style={styles.searchIcon}
+                  />
+                  <TextInput
+                    style={styles.searchBarInput}
+                    placeholder="Start typing to search"
+                    placeholderTextColor="#717171"
+                    editable={false}
+                  />
+                </View>
+                <TouchableOpacity
+                  style={styles.filterButton}
+                  onPress={() => {
+                    // Initialize modal with currently applied filters
+                    setSelectedSortBy(appliedFilters.sortBy);
+                    setSelectedRating(appliedFilters.rating);
+                    setSelectedCategory(appliedFilters.category);
+                    setSelectedSubCategory(appliedFilters.subCategory);
+                    setShowFilterModal(true);
+                    slideAnim.setValue(height);
+                    Animated.spring(slideAnim, {
+                      toValue: 0,
+                      useNativeDriver: true,
+                      tension: 65,
+                      friction: 11,
+                    }).start();
+                  }}
+                >
+                  <Ionicons name="filter-outline" size={20} color="#000" />
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -433,11 +526,437 @@ export default function App() {
                 userCountry={userCountry}
                 activeCategory={activeCategory}
                 onPlacePress={setSelectedPlaceId}
+                filters={appliedFilters}
               />
             )}
             <BottomNavBar activeTab={activeTab} onTabChange={setActiveTab} />
           </>
         )}
+
+        {/* Filter Bottom Sheet Modal */}
+        <Modal
+          visible={showFilterModal}
+          transparent={true}
+          animationType="none"
+          onRequestClose={() => {
+            Animated.spring(slideAnim, {
+              toValue: height,
+              useNativeDriver: true,
+              tension: 65,
+              friction: 11,
+            }).start(() => setShowFilterModal(false));
+          }}
+        >
+          <TouchableWithoutFeedback
+            onPress={() => {
+              Animated.spring(slideAnim, {
+                toValue: height,
+                useNativeDriver: true,
+                tension: 65,
+                friction: 11,
+              }).start(() => setShowFilterModal(false));
+            }}
+          >
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback
+                onPress={() => setShowSortDropdown(false)}
+              >
+                <Animated.View
+                  style={[
+                    styles.filterModal,
+                    {
+                      transform: [{ translateY: slideAnim }],
+                    },
+                  ]}
+                >
+                  <View style={styles.modalHandle} />
+                  <View style={styles.modalContentWrapper}>
+                    <ScrollView
+                      style={styles.modalScrollView}
+                      contentContainerStyle={styles.modalScrollContent}
+                      showsVerticalScrollIndicator={false}
+                    >
+                      <View style={styles.filterContent}>
+                        {/* Sort By Section */}
+                        <View style={styles.filterSection}>
+                          <Text style={styles.sectionLabel}>Sort By</Text>
+                          <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            style={styles.pillScrollView}
+                            contentContainerStyle={styles.pillScrollContent}
+                          >
+                            <TouchableOpacity
+                              style={[
+                                styles.pillButton,
+                                selectedSortBy === "distance" &&
+                                  styles.pillButtonActive,
+                              ]}
+                              onPress={() => {
+                                setSelectedSortBy("distance");
+                                console.log("Sort by: Distance");
+                              }}
+                            >
+                              <Text
+                                style={[
+                                  styles.pillButtonText,
+                                  selectedSortBy === "distance" &&
+                                    styles.pillButtonTextActive,
+                                ]}
+                              >
+                                Distance
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[
+                                styles.pillButton,
+                                selectedSortBy === "price" &&
+                                  styles.pillButtonActive,
+                              ]}
+                              onPress={() => {
+                                setSelectedSortBy("price");
+                                console.log("Sort by: Price");
+                              }}
+                            >
+                              <Text
+                                style={[
+                                  styles.pillButtonText,
+                                  selectedSortBy === "price" &&
+                                    styles.pillButtonTextActive,
+                                ]}
+                              >
+                                Price
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[
+                                styles.pillButton,
+                                selectedSortBy === "rating" &&
+                                  styles.pillButtonActive,
+                              ]}
+                              onPress={() => {
+                                setSelectedSortBy("rating");
+                                console.log("Sort by: Rating");
+                              }}
+                            >
+                              <Text
+                                style={[
+                                  styles.pillButtonText,
+                                  selectedSortBy === "rating" &&
+                                    styles.pillButtonTextActive,
+                                ]}
+                              >
+                                Rating
+                              </Text>
+                            </TouchableOpacity>
+                          </ScrollView>
+                        </View>
+
+                        {/* Category Section */}
+                        <View style={styles.filterSection}>
+                          <Text style={styles.sectionLabel}>Category</Text>
+                          <TouchableOpacity
+                            style={styles.dropdownButton}
+                            onPress={() => {
+                              setShowCategoryDropdown(!showCategoryDropdown);
+                              setShowSubCategoryDropdown(false);
+                            }}
+                          >
+                            <Text style={styles.dropdownButtonText}>
+                              {selectedCategory === "All"
+                                ? "Select Category"
+                                : categories.find(
+                                    (c) => c.id === selectedCategory,
+                                  )?.label || "Select Category"}
+                            </Text>
+                            <Ionicons
+                              name={
+                                showCategoryDropdown
+                                  ? "chevron-up"
+                                  : "chevron-down"
+                              }
+                              size={20}
+                              color={colors.textSecondary}
+                            />
+                          </TouchableOpacity>
+
+                          {showCategoryDropdown && (
+                            <View style={styles.dropdownMenu}>
+                              <ScrollView
+                                style={styles.dropdownScrollView}
+                                nestedScrollEnabled={true}
+                                showsVerticalScrollIndicator={true}
+                              >
+                                {categories.map((category) => (
+                                  <TouchableOpacity
+                                    key={category.id}
+                                    style={[
+                                      styles.dropdownOption,
+                                      selectedCategory === category.id &&
+                                        styles.dropdownOptionSelected,
+                                    ]}
+                                    onPress={() => {
+                                      setSelectedCategory(category.id);
+                                      setSelectedSubCategory(""); // Reset sub-category when category changes
+                                      setShowCategoryDropdown(false);
+                                      console.log("Category:", category.id);
+                                    }}
+                                  >
+                                    <Text
+                                      style={[
+                                        styles.dropdownOptionText,
+                                        selectedCategory === category.id &&
+                                          styles.dropdownOptionTextSelected,
+                                      ]}
+                                    >
+                                      {category.label}
+                                    </Text>
+                                    {selectedCategory === category.id && (
+                                      <Ionicons
+                                        name="checkmark"
+                                        size={20}
+                                        color={colors.primary}
+                                      />
+                                    )}
+                                  </TouchableOpacity>
+                                ))}
+                              </ScrollView>
+                            </View>
+                          )}
+                        </View>
+
+                        {/* Sub-category Section */}
+                        <View style={styles.filterSection}>
+                          <Text style={styles.sectionLabel}>Sub-category</Text>
+                          <TouchableOpacity
+                            style={[
+                              styles.dropdownButton,
+                              (selectedCategory === "All" ||
+                                !subCategories[selectedCategory]?.length) &&
+                                styles.dropdownButtonDisabled,
+                            ]}
+                            disabled={
+                              selectedCategory === "All" ||
+                              !subCategories[selectedCategory]?.length
+                            }
+                            onPress={() => {
+                              if (
+                                selectedCategory !== "All" &&
+                                subCategories[selectedCategory]?.length
+                              ) {
+                                setShowSubCategoryDropdown(
+                                  !showSubCategoryDropdown,
+                                );
+                                setShowCategoryDropdown(false);
+                              }
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.dropdownButtonText,
+                                (selectedCategory === "All" ||
+                                  !subCategories[selectedCategory]?.length) &&
+                                  styles.dropdownButtonTextDisabled,
+                              ]}
+                            >
+                              {selectedSubCategory
+                                ? selectedSubCategory
+                                : "Select Sub-category"}
+                            </Text>
+                            <Ionicons
+                              name={
+                                showSubCategoryDropdown
+                                  ? "chevron-up"
+                                  : "chevron-down"
+                              }
+                              size={20}
+                              color={
+                                selectedCategory === "All" ||
+                                !subCategories[selectedCategory]?.length
+                                  ? colors.border
+                                  : colors.textSecondary
+                              }
+                            />
+                          </TouchableOpacity>
+
+                          {showSubCategoryDropdown &&
+                            selectedCategory !== "All" &&
+                            subCategories[selectedCategory]?.length > 0 && (
+                              <View style={styles.dropdownMenu}>
+                                <ScrollView
+                                  style={styles.dropdownScrollView}
+                                  nestedScrollEnabled={true}
+                                  showsVerticalScrollIndicator={true}
+                                >
+                                  {subCategories[selectedCategory].map(
+                                    (subCat) => (
+                                      <TouchableOpacity
+                                        key={subCat}
+                                        style={[
+                                          styles.dropdownOption,
+                                          selectedSubCategory === subCat &&
+                                            styles.dropdownOptionSelected,
+                                        ]}
+                                        onPress={() => {
+                                          setSelectedSubCategory(subCat);
+                                          setShowSubCategoryDropdown(false);
+                                          console.log("Sub-category:", subCat);
+                                        }}
+                                      >
+                                        <Text
+                                          style={[
+                                            styles.dropdownOptionText,
+                                            selectedSubCategory === subCat &&
+                                              styles.dropdownOptionTextSelected,
+                                          ]}
+                                        >
+                                          {subCat}
+                                        </Text>
+                                        {selectedSubCategory === subCat && (
+                                          <Ionicons
+                                            name="checkmark"
+                                            size={20}
+                                            color={colors.primary}
+                                          />
+                                        )}
+                                      </TouchableOpacity>
+                                    ),
+                                  )}
+                                </ScrollView>
+                              </View>
+                            )}
+                        </View>
+
+                        {/* Rating Filter Section */}
+                        <View style={styles.filterSection}>
+                          <Text style={styles.sectionLabel}>Rating</Text>
+                          <View style={styles.ratingContainer}>
+                            <View style={styles.ratingProgressBarContainer}>
+                              <View style={styles.ratingProgressBarBackground}>
+                                <View
+                                  style={[
+                                    styles.ratingProgressBarFill,
+                                    {
+                                      width: `${(selectedRating / 5) * 100}%`,
+                                    },
+                                  ]}
+                                />
+                              </View>
+                              {[0, 1, 2, 3, 4, 5].map((rating) => (
+                                <TouchableOpacity
+                                  key={rating}
+                                  style={[
+                                    styles.ratingMarker,
+                                    {
+                                      left: `${(rating / 5) * 100}%`,
+                                    },
+                                  ]}
+                                  onPress={() => {
+                                    setSelectedRating(rating);
+                                    console.log(`Rating filter: ${rating}`);
+                                  }}
+                                >
+                                  <View
+                                    style={[
+                                      styles.ratingMarkerDot,
+                                      selectedRating >= rating &&
+                                        styles.ratingMarkerDotActive,
+                                    ]}
+                                  />
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                            <View style={styles.ratingLabels}>
+                              <Text style={styles.ratingLabelText}>0</Text>
+                              <Text style={styles.ratingLabelText}>5</Text>
+                            </View>
+                            {selectedRating > 0 && (
+                              <View style={styles.ratingValueContainer}>
+                                <Text style={styles.ratingValue}>
+                                  {selectedRating}+ stars
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                      </View>
+                    </ScrollView>
+
+                    {/* Action Buttons */}
+                    <View style={styles.actionButtonsContainer}>
+                      <TouchableOpacity
+                        style={styles.resetButton}
+                        onPress={() => {
+                          // Reset temporary filter state
+                          setSelectedSortBy("rating");
+                          setSelectedRating(0);
+                          setSelectedCategory("All");
+                          setSelectedSubCategory("");
+                          setShowCategoryDropdown(false);
+                          setShowSubCategoryDropdown(false);
+
+                          // Reset applied filters
+                          setAppliedFilters({
+                            sortBy: "rating",
+                            rating: 0,
+                            category: "All",
+                            subCategory: "",
+                          });
+
+                          // Update active category to "All"
+                          setActiveCategory("All");
+
+                          console.log("Filters reset");
+
+                          // Close modal
+                          Animated.spring(slideAnim, {
+                            toValue: height,
+                            useNativeDriver: true,
+                            tension: 65,
+                            friction: 11,
+                          }).start(() => setShowFilterModal(false));
+                        }}
+                      >
+                        <Text style={styles.resetButtonText}>Reset</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.applyButton}
+                        onPress={() => {
+                          // Apply filters
+                          const newFilters = {
+                            sortBy: selectedSortBy,
+                            rating: selectedRating,
+                            category: selectedCategory,
+                            subCategory: selectedSubCategory,
+                          };
+
+                          setAppliedFilters(newFilters);
+
+                          // Update active category if different
+                          if (selectedCategory !== activeCategory) {
+                            setActiveCategory(selectedCategory);
+                          }
+
+                          console.log("Applying filters:", newFilters);
+
+                          // Close modal
+                          Animated.spring(slideAnim, {
+                            toValue: height,
+                            useNativeDriver: true,
+                            tension: 65,
+                            friction: 11,
+                          }).start(() => setShowFilterModal(false));
+                        }}
+                      >
+                        <Text style={styles.applyButtonText}>Apply</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </Animated.View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
       </View>
     </ErrorBoundary>
   );
@@ -460,11 +979,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 16,
   },
+  searchBarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
   searchBarContainer: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#fff",
     borderRadius: 40, // More rounded, pill-shaped like Airbnb
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.04)",
+  },
+  filterButton: {
+    backgroundColor: "#fff",
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
     shadowColor: "#000",
@@ -609,5 +1152,269 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: "center",
     fontFamily: fonts.regular,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  filterModal: {
+    backgroundColor: colors.cardBackground,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === "ios" ? 40 : 20,
+    paddingHorizontal: 20,
+    height: height * 0.65,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: colors.border,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 24,
+  },
+  modalContentWrapper: {
+    flex: 1,
+    minHeight: 0,
+  },
+  modalScrollView: {
+    flex: 1,
+  },
+  modalScrollContent: {
+    flexGrow: 1,
+  },
+  filterContent: {
+    paddingBottom: 20,
+  },
+  filterSection: {
+    marginBottom: 24,
+  },
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: 12,
+    fontFamily: fonts.semiBold,
+  },
+  pillScrollView: {
+    marginHorizontal: -4,
+  },
+  pillScrollContent: {
+    paddingHorizontal: 4,
+    gap: 8,
+  },
+  pillButton: {
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    marginRight: 8,
+    shadowColor: colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  pillButtonActive: {
+    backgroundColor: colors.surface,
+    borderColor: colors.primary,
+  },
+  pillButtonText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontFamily: fonts.regular,
+  },
+  pillButtonTextActive: {
+    color: colors.text,
+    fontFamily: fonts.semiBold,
+  },
+  inputField: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: colors.text,
+    borderWidth: 1,
+    borderColor: colors.border,
+    fontFamily: fonts.regular,
+  },
+  dropdownButton: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    shadowColor: colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  dropdownButtonDisabled: {
+    backgroundColor: colors.surface,
+    opacity: 0.6,
+  },
+  dropdownButtonText: {
+    fontSize: 16,
+    color: colors.text,
+    fontFamily: fonts.regular,
+  },
+  dropdownButtonTextDisabled: {
+    color: colors.textSecondary,
+  },
+  dropdownMenu: {
+    marginTop: 8,
+    backgroundColor: colors.cardBackground,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    overflow: "hidden",
+    maxHeight: 200,
+  },
+  dropdownScrollView: {
+    maxHeight: 200,
+  },
+  dropdownOption: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  dropdownOptionSelected: {
+    backgroundColor: colors.surface,
+  },
+  dropdownOptionText: {
+    fontSize: 16,
+    color: colors.text,
+    fontFamily: fonts.regular,
+  },
+  dropdownOptionTextSelected: {
+    color: colors.primary,
+    fontFamily: fonts.semiBold,
+  },
+  ratingContainer: {
+    gap: 8,
+  },
+  ratingProgressBarContainer: {
+    position: "relative",
+    height: 40,
+    justifyContent: "center",
+  },
+  ratingProgressBarBackground: {
+    height: 8,
+    backgroundColor: colors.border,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  ratingProgressBarFill: {
+    height: "100%",
+    backgroundColor: colors.accent,
+    borderRadius: 4,
+  },
+  ratingMarker: {
+    position: "absolute",
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: -12,
+  },
+  ratingMarkerDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.border,
+    borderWidth: 2,
+    borderColor: colors.cardBackground,
+  },
+  ratingMarkerDotActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.cardBackground,
+  },
+  ratingLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 4,
+  },
+  ratingLabelText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontFamily: fonts.regular,
+  },
+  ratingValueContainer: {
+    alignItems: "center",
+    marginTop: 8,
+    width: "100%",
+  },
+  ratingValue: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: "600",
+    fontFamily: fonts.semiBold,
+  },
+  actionButtonsContainer: {
+    flexDirection: "row",
+    gap: 12,
+    paddingTop: 20,
+    paddingBottom: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.cardBackground,
+  },
+  resetButton: {
+    flex: 1,
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: colors.text,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  resetButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.text,
+    fontFamily: fonts.semiBold,
+  },
+  applyButton: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  applyButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.cardBackground,
+    fontFamily: fonts.semiBold,
   },
 });
