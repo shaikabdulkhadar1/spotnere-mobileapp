@@ -7,7 +7,7 @@ require("dotenv").config();
 
 export default {
   expo: {
-    name: "spotnere-mobileapp",
+    name: "Spotnere – Discover & Book",
     owner: "shaikabdulkhadar571",
     slug: "spotnere-mobileapp",
     version: "1.0.0",
@@ -15,7 +15,8 @@ export default {
     icon: "./assets/icon.png",
     userInterfaceStyle: "light",
     splash: {
-      image: "./assets/splash-icon.png",
+      image: "./assets/icons/splash-icon.png",
+      imageWidth: 200,
       resizeMode: "contain",
       backgroundColor: "#ffffff",
     },
@@ -28,12 +29,17 @@ export default {
         NSLocationAlwaysAndWhenInUseUsageDescription:
           "This app needs access to your location to show nearby places.",
       },
+      icons: {
+        light: "./assets/icons/icon-light.png",
+        dark: "./assets/icons/icon-dark.png",
+        tinted: "./assets/icons/icon-tinted.png",
+      },
     },
     android: {
       package: "com.spotnere.mobileapp",
       versionCode: 1,
       adaptiveIcon: {
-        foregroundImage: "./assets/adaptive-icon.png",
+        foregroundImage: "./assets/icons/adaptive-icon.png",
         backgroundColor: "#ffffff",
       },
       permissions: ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
