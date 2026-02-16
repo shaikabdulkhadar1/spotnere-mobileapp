@@ -244,11 +244,9 @@ const PlaceDetailScreen = ({ placeId, onClose }) => {
   const handleSubmitReview = async () => {
     const user = await getCurrentUser();
     if (!user?.id) {
-      Alert.alert(
-        "Login required",
-        "Please log in to add a review.",
-        [{ text: "OK" }]
-      );
+      Alert.alert("Login required", "Please log in to add a review.", [
+        { text: "OK" },
+      ]);
       return;
     }
 
@@ -290,10 +288,27 @@ const PlaceDetailScreen = ({ placeId, onClose }) => {
         return;
       }
 
+      // Fetch all reviews for this place and calculate avg rating
+      const { data: allReviews } = await supabase
+        .from("reviews")
+        .select("rating")
+        .eq("place_id", placeId);
+
+      const avgRating =
+        allReviews && allReviews.length > 0
+          ? allReviews.reduce((sum, r) => sum + parseFloat(r.rating ?? 0), 0) /
+            allReviews.length
+          : 0;
+
+      // Update places.rating with new average
+      const roundedAvg = Math.round(avgRating * 10) / 10;
+      await supabase.from("places").update({ rating: roundedAvg }).eq("id", placeId);
+
       setShowAddReviewModal(false);
       setAddReviewText("");
       setAddReviewRating(0);
       await fetchReviews();
+      await fetchPlaceDetails(); // Refresh place details so hero rating updates
       Alert.alert("Success", "Your review has been posted.", [{ text: "OK" }]);
     } catch (err) {
       Alert.alert("Error", "Failed to add review. Please try again.", [
@@ -307,11 +322,9 @@ const PlaceDetailScreen = ({ placeId, onClose }) => {
   const openAddReviewModal = async () => {
     const user = await getCurrentUser();
     if (!user?.id) {
-      Alert.alert(
-        "Login required",
-        "Please log in to add a review.",
-        [{ text: "OK" }]
-      );
+      Alert.alert("Login required", "Please log in to add a review.", [
+        { text: "OK" },
+      ]);
       return;
     }
     setAddReviewText("");
@@ -362,17 +375,13 @@ const PlaceDetailScreen = ({ placeId, onClose }) => {
   // Prefer avg from reviews; fallback to place's stored rating
   const ratingFromReviews =
     reviews.length > 0
-      ? reviews.reduce(
-          (sum, r) => sum + parseFloat(r.rating ?? 0),
-          0
-        ) / reviews.length
+      ? reviews.reduce((sum, r) => sum + parseFloat(r.rating ?? 0), 0) /
+        reviews.length
       : null;
   const rawRating =
     ratingFromReviews ??
     parseFloat(placeDetails.rating || placeDetails.average_rating || 0);
-  const rating = isNaN(rawRating)
-    ? 0
-    : Math.min(5, Math.max(0, rawRating));
+  const rating = isNaN(rawRating) ? 0 : Math.min(5, Math.max(0, rawRating));
   const likes = placeDetails.likes || placeDetails.favorites || 1300;
 
   const imageUri =
