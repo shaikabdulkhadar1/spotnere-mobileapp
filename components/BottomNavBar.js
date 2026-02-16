@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import {
   StyleSheet,
-  Text,
   View,
   TouchableOpacity,
   Animated,
@@ -12,27 +11,28 @@ import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../constants/colors";
 
-import { fonts } from "../constants/fonts";
-
 const { width } = Dimensions.get("window");
 
 const BottomNavBar = ({ activeTab, onTabChange }) => {
   const tabs = [
     { id: "home", icon: "home" },
-    { id: "favorite", label: "Favorite", icon: "heart" },
-    { id: "map", label: "Map", icon: "map" },
-    { id: "trips", label: "Trips", icon: "airplane" },
-    { id: "reels", label: "Reels", icon: "play-circle" },
-    { id: "profile", label: "Profile", icon: "person" },
+    { id: "favorite", icon: "heart" },
+    { id: "map", icon: "map" },
+    { id: "trips", icon: "airplane" },
+    { id: "reels", icon: "play-circle" },
+    { id: "profile", icon: "person" },
   ];
 
-  // Initialize animation values for the active background indicator
+  // Indicator values (keep your current layout animation)
   const homeIndicator = useRef(new Animated.Value(1)).current;
   const favoriteIndicator = useRef(new Animated.Value(0)).current;
   const mapIndicator = useRef(new Animated.Value(0)).current;
   const tripsIndicator = useRef(new Animated.Value(0)).current;
   const reelsIndicator = useRef(new Animated.Value(0)).current;
   const profileIndicator = useRef(new Animated.Value(0)).current;
+
+  // ✅ NEW: bounce scale only for the active indicator
+  const bounceScale = useRef(new Animated.Value(1)).current;
 
   const getIndicator = (tabId) => {
     switch (tabId) {
@@ -54,25 +54,40 @@ const BottomNavBar = ({ activeTab, onTabChange }) => {
   };
 
   useEffect(() => {
+    // Keep your existing indicator size animation
     tabs.forEach((tab) => {
       const isActive = activeTab === tab.id;
       const indicator = getIndicator(tab.id);
 
       Animated.spring(indicator, {
         toValue: isActive ? 1 : 0,
-        useNativeDriver: false, // Can't use native driver for layout props like width/height
+        useNativeDriver: false, // width/height interpolations
         tension: 120,
         friction: 8,
       }).start();
     });
+
+    // ✅ Bounce only when active tab changes (applies to the active indicator)
+    // useNativeDriver: false required - same view has width/height which aren't supported by native driver
+    bounceScale.setValue(1);
+    Animated.sequence([
+      Animated.spring(bounceScale, {
+        toValue: 1.12,
+        useNativeDriver: false,
+        tension: 220,
+        friction: 5,
+      }),
+      Animated.spring(bounceScale, {
+        toValue: 1,
+        useNativeDriver: false,
+        tension: 220,
+        friction: 6,
+      }),
+    ]).start();
   }, [activeTab]);
 
-  // Use BlurView on iOS, regular View on Android (to avoid software rendering crash)
   const BlurContainer = Platform.OS === "ios" ? BlurView : View;
-  const blurProps =
-    Platform.OS === "ios"
-      ? { intensity: 80 } // Reduced intensity for transparency, no tint to keep original color
-      : {};
+  const blurProps = Platform.OS === "ios" ? { intensity: 80 } : {};
 
   return (
     <View style={styles.navBarContainer}>
@@ -82,26 +97,24 @@ const BottomNavBar = ({ activeTab, onTabChange }) => {
             const isActive = activeTab === tab.id;
             const indicator = getIndicator(tab.id);
 
-            // Interpolate the dimensions of the active background (rounded rectangle)
             const backgroundWidth = indicator.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, 50], // Width of the rounded background
+              outputRange: [0, 50],
             });
 
             const backgroundHeight = indicator.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, 50], // Height of the rounded background
+              outputRange: [0, 50],
             });
 
-            // Center the background by translating by negative half of width/height
             const backgroundTranslateX = indicator.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, -25], // Negative half of max width (50/2)
+              outputRange: [0, -25],
             });
 
             const backgroundTranslateY = indicator.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, -25], // Negative half of max height (50/2)
+              outputRange: [0, -25],
             });
 
             const backgroundOpacity = indicator.interpolate({
@@ -127,6 +140,8 @@ const BottomNavBar = ({ activeTab, onTabChange }) => {
                         transform: [
                           { translateX: backgroundTranslateX },
                           { translateY: backgroundTranslateY },
+                          // ✅ bounce ONLY when it's the active tab
+                          ...(isActive ? [{ scale: bounceScale }] : []),
                         ],
                       },
                     ]}
@@ -160,16 +175,13 @@ const styles = StyleSheet.create({
   navBar: {
     width: width - 32,
     height: 70,
-    borderRadius: 35, // Half of height for fully rounded pill shape
-    overflow: "hidden", // Required for borderRadius to work
-    backgroundColor: "transparent", // Transparent background
+    borderRadius: 35,
+    overflow: "hidden",
+    backgroundColor: "transparent",
     borderWidth: 1,
-    borderColor: "rgba(202, 211, 167, 0.2)", // More transparent border
+    borderColor: "rgba(202, 211, 167, 0.2)",
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.12,
     shadowRadius: 16,
     elevation: 12,
@@ -183,8 +195,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 35,
     overflow: "hidden",
-    // Semi-transparent background to maintain original color (colors.primary: #223843)
-    backgroundColor: colors.primary, // Same color as before but transparent
+    backgroundColor: colors.primary,
   },
   navItem: {
     flex: 1,

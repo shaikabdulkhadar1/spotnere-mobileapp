@@ -16,6 +16,7 @@ import {
   Image,
   Modal,
   Animated,
+  BackHandler,
 } from "react-native";
 import { useState, useEffect, useRef } from "react";
 import { useFonts } from "expo-font";
@@ -118,6 +119,7 @@ export default function App() {
   const [selectedPlaceId, setSelectedPlaceId] = useState(null);
   const [activeCategory, setActiveCategory] = useState("All");
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Filter state (temporary - for modal)
   const [selectedSortBy, setSelectedSortBy] = useState("rating");
@@ -137,6 +139,58 @@ export default function App() {
   });
 
   const slideAnim = useRef(new Animated.Value(height)).current;
+  const lastBackPress = useRef(0);
+
+  // Android back button: navigate back instead of exiting app
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        // 1. Close filter modal if open
+        if (showFilterModal) {
+          Animated.spring(slideAnim, {
+            toValue: height,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 11,
+          }).start(() => setShowFilterModal(false));
+          return true;
+        }
+
+        // 2. Close place detail if viewing
+        if (selectedPlaceId) {
+          setSelectedPlaceId(null);
+          return true;
+        }
+
+        // 3. Go back to home if on another tab
+        if (activeTab !== "home") {
+          setActiveTab("home");
+          return true;
+        }
+
+        // 4. On home: "Press back again to exit"
+        const now = Date.now();
+        if (now - lastBackPress.current < 2000) {
+          BackHandler.exitApp();
+          return true;
+        }
+        lastBackPress.current = now;
+        Alert.alert("Exit App", "Press back again to exit", [{ text: "OK" }]);
+        return true;
+      }
+    );
+
+    return () => backHandler.remove();
+  }, [
+    showFilterModal,
+    selectedPlaceId,
+    activeTab,
+    slideAnim,
+    height,
+  ]);
 
   // Sub-categories mapping based on image
   const subCategories = {
@@ -400,7 +454,10 @@ export default function App() {
                     style={styles.searchBarInput}
                     placeholder="Start typing to search"
                     placeholderTextColor="#717171"
-                    editable={false}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    editable={true}
+                    returnKeyType="search"
                   />
                 </View>
                 <TouchableOpacity
@@ -527,6 +584,7 @@ export default function App() {
                 activeCategory={activeCategory}
                 onPlacePress={setSelectedPlaceId}
                 filters={appliedFilters}
+                searchQuery={searchQuery}
               />
             )}
             <BottomNavBar activeTab={activeTab} onTabChange={setActiveTab} />

@@ -25,8 +25,8 @@ const HomeScreen = ({
   activeCategory,
   onPlacePress,
   filters = { sortBy: "rating", rating: 0, category: "All", subCategory: "" },
+  searchQuery = "",
 }) => {
-  const [places, setPlaces] = useState([]);
   const [allPlacesData, setAllPlacesData] = useState([]); // Store all fetched places
   const [displayedCount, setDisplayedCount] = useState(TOP_K); // Number of places currently displayed
   const [loading, setLoading] = useState(true);
@@ -37,6 +37,11 @@ const HomeScreen = ({
       fetchTopPlaces();
     }
   }, [userCountry, activeCategory, filters]);
+
+  // Reset displayed count when search query changes
+  useEffect(() => {
+    setDisplayedCount(TOP_K);
+  }, [searchQuery]);
 
   // Efficient top-K selection: Get top K items without full sorting
   // Uses a "keep top K" algorithm - O(n * k) instead of O(n log n)
@@ -83,6 +88,30 @@ const HomeScreen = ({
   // Helper: Get top K by rating (descending - highest first)
   const getTopKByRating = (items, k = TOP_K) => {
     return getTopK(items, k, (a, b) => b.rating - a.rating);
+  };
+
+  // Filter places by search query (matches title, category, subcategory, description, city, state, country)
+  const filterBySearch = (items, query) => {
+    if (!query || !query.trim()) return items;
+    const q = query.trim().toLowerCase();
+    return items.filter((place) => {
+      const title = (place.title || "").toLowerCase();
+      const category = (place.category || "").toLowerCase();
+      const subCategory = (place.subCategory || "").toLowerCase();
+      const description = (place.description || "").toLowerCase();
+      const city = (place.city || "").toLowerCase();
+      const state = (place.state || "").toLowerCase();
+      const country = (place.country || "").toLowerCase();
+      return (
+        title.includes(q) ||
+        category.includes(q) ||
+        subCategory.includes(q) ||
+        description.includes(q) ||
+        city.includes(q) ||
+        state.includes(q) ||
+        country.includes(q)
+      );
+    });
   };
 
   // Helper: Sort by different criteria
@@ -141,7 +170,7 @@ const HomeScreen = ({
 
       if (!allPlaces || allPlaces.length === 0) {
         console.warn("⚠️ No places found");
-        setPlaces([]);
+        setAllPlacesData([]);
         setLoading(false);
         return;
       }
@@ -157,6 +186,10 @@ const HomeScreen = ({
         imageUri: place.banner_image_link || place.image || place.photo_url,
         category: place.category || "", // Store category for filtering
         subCategory: place.sub_category || place.subCategory || "", // Store sub-category for filtering
+        description: place.description || "",
+        city: place.city || place.location || "",
+        state: place.state || "",
+        country: place.country || "",
         isSmall: false,
       }));
 
@@ -223,7 +256,7 @@ const HomeScreen = ({
             : ""
         }`
       );
-      setPlaces(formatted);
+      setAllPlacesData(sortedPlaces);
       setDisplayedCount(TOP_K);
     } catch (err) {
       console.error("Error fetching places:", err);
@@ -234,27 +267,28 @@ const HomeScreen = ({
   };
 
   const handleLoadMore = () => {
-    if (allPlacesData.length === 0 || displayedCount >= allPlacesData.length) {
-      // Show toast message when no more places
+    const searchFiltered = filterBySearch(allPlacesData, searchQuery);
+    if (
+      searchFiltered.length === 0 ||
+      displayedCount >= searchFiltered.length
+    ) {
       Alert.alert("", "No more places to load", [{ text: "OK" }]);
       return;
     }
 
-    // Get next batch of places (already sorted based on filters)
-    const nextBatch = allPlacesData.slice(
-      displayedCount,
-      displayedCount + LOAD_MORE_COUNT
+    setDisplayedCount((prevCount) =>
+      Math.min(prevCount + LOAD_MORE_COUNT, searchFiltered.length)
     );
-
-    // Add showBadge to first place of new batch if it's in top 3 overall
-    const formatted = nextBatch.map((place, index) => ({
-      ...place,
-      showBadge: displayedCount + index < 3, // Show badge if in top 3 overall
-    }));
-
-    setPlaces((prevPlaces) => [...prevPlaces, ...formatted]);
-    setDisplayedCount((prevCount) => prevCount + nextBatch.length);
   };
+
+  // Apply search filter and slice for display
+  const searchFilteredPlaces = filterBySearch(allPlacesData, searchQuery);
+  const placesToDisplay = searchFilteredPlaces
+    .slice(0, displayedCount)
+    .map((place, index) => ({
+      ...place,
+      showBadge: index < 3,
+    }));
 
   if (loading) {
     return (
@@ -286,6 +320,10 @@ const HomeScreen = ({
     );
   }
 
+  const hasMoreToLoad =
+    searchFilteredPlaces.length > 0 &&
+    displayedCount < searchFilteredPlaces.length;
+
   return (
     <ScrollView
       style={styles.scrollView}
@@ -293,14 +331,18 @@ const HomeScreen = ({
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.allPlacesContainer}>
-        {places.length === 0 ? (
+        {placesToDisplay.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No places found</Text>
+            <Text style={styles.emptyText}>
+              {searchQuery.trim()
+                ? `No places found for "${searchQuery}"`
+                : "No places found"}
+            </Text>
           </View>
         ) : (
           <>
             <View style={styles.gridContainer}>
-              {places.map((place, index) => (
+              {placesToDisplay.map((place, index) => (
                 <View key={place.id || index} style={styles.gridCard}>
                   <PlaceCard
                     title={place.title}
@@ -317,14 +359,18 @@ const HomeScreen = ({
             </View>
 
             {/* Load More Button */}
-            <View style={styles.loadMoreContainer}>
-              <TouchableOpacity
-                style={styles.loadMoreButton}
-                onPress={handleLoadMore}
-              >
-                <Text style={styles.loadMoreButtonText}>Load More Places</Text>
-              </TouchableOpacity>
-            </View>
+            {hasMoreToLoad && (
+              <View style={styles.loadMoreContainer}>
+                <TouchableOpacity
+                  style={styles.loadMoreButton}
+                  onPress={handleLoadMore}
+                >
+                  <Text style={styles.loadMoreButtonText}>
+                    Load More Places
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </>
         )}
       </View>

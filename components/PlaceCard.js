@@ -1,3 +1,10 @@
+/**
+ * PlaceCard — Modern Redesign (2026 “premium glass + soft border + chip meta”)
+ * ✅ Same props + same favorite logic (Supabase favorites helpers)
+ * ✅ Cleaner layout: image → gradient → chips (badge + rating) → title/price
+ * ✅ Better touch targets + subtle elevation + iOS/Android friendly rounded corners
+ */
+
 import React, { useState, useRef, useEffect } from "react";
 import {
   StyleSheet,
@@ -6,9 +13,9 @@ import {
   TouchableOpacity,
   Platform,
   Animated,
+  Dimensions,
 } from "react-native";
 import { Image as ExpoImage } from "expo-image";
-import { Dimensions } from "react-native";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../constants/colors";
@@ -37,39 +44,30 @@ const PlaceCard = ({
   const [isFavorited, setIsFavorited] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  // Check favorite status on mount
   useEffect(() => {
     const checkFavoriteStatus = async () => {
-      if (placeId) {
-        const user = await getCurrentUser();
-        if (user && user.id) {
-          const favorited = await isFavoriteInDatabase(user.id, placeId);
-          setIsFavorited(favorited);
-        }
+      if (!placeId) return;
+      const user = await getCurrentUser();
+      if (user?.id) {
+        const favorited = await isFavoriteInDatabase(user.id, placeId);
+        setIsFavorited(favorited);
       }
     };
     checkFavoriteStatus();
   }, [placeId]);
 
   const handleFavoritePress = async () => {
-    if (!placeId) {
-      console.warn("Place ID is required to favorite");
-      return;
-    }
+    if (!placeId) return;
 
     const user = await getCurrentUser();
-    if (!user || !user.id) {
-      console.warn("User must be logged in to favorite places");
-      return;
-    }
+    if (!user?.id) return;
 
     const newFavoriteState = !isFavorited;
     setIsFavorited(newFavoriteState);
 
-    // Heart pop animation
     Animated.sequence([
       Animated.spring(scaleAnim, {
-        toValue: 1.3,
+        toValue: 1.22,
         friction: 3,
         tension: 40,
         useNativeDriver: true,
@@ -82,116 +80,96 @@ const PlaceCard = ({
       }),
     ]).start();
 
-    // Save or remove from database
     if (newFavoriteState) {
       const result = await saveFavoriteToDatabase(user.id, placeId);
-      if (!result.success) {
-        // Revert state if save failed
-        setIsFavorited(false);
-        console.error("Failed to save favorite:", result.error);
-      }
+      if (!result.success) setIsFavorited(false);
     } else {
       const result = await removeFavoriteFromDatabase(user.id, placeId);
-      if (!result.success) {
-        // Revert state if remove failed
-        setIsFavorited(true);
-        console.error("Failed to remove favorite:", result.error);
-      }
+      if (!result.success) setIsFavorited(true);
     }
   };
+
+  const cardWidth = isSmall ? (width - 64) * 0.35 : (width - 64) * 0.5;
+  const imageHeight = isSmall ? (width - 64) * 0.35 : (width - 64) * 0.42;
+
   return (
     <TouchableOpacity
-      style={[
-        styles.placeCard,
-        isSmall && styles.placeCardSmall,
-        containerStyle,
-      ]}
+      style={[styles.card, { width: cardWidth }, containerStyle]}
       onPress={() => onPress && placeId && onPress(placeId)}
-      activeOpacity={0.8}
+      activeOpacity={0.9}
     >
-      {/* Image Container */}
-      <View
-        style={[
-          styles.cardImageContainer,
-          isSmall && styles.cardImageContainerSmall,
-          Platform.OS === "ios" && styles.cardImageContainerIOS,
-        ]}
-      >
+      {/* IMAGE */}
+      <View style={[styles.media, { height: imageHeight }]}>
         <ExpoImage
           source={
             imageUri
               ? { uri: imageUri }
               : {
-                  uri: "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=300&fit=crop",
+                  uri: "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=600&h=450&fit=crop",
                 }
           }
-          style={styles.cardImage}
+          style={styles.mediaImg}
           contentFit="cover"
           placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
-          onLoad={() => {
-            if (onImageLoad) {
-              onImageLoad();
-            }
-          }}
+          onLoad={onImageLoad}
         />
 
-        {/* Guest Favorite Badge */}
-        {showBadge && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>Guest favorite</Text>
-          </View>
-        )}
+        {/* Soft gradient overlay for text legibility */}
+        <View style={styles.mediaGradient} />
 
-        {/* Heart Icon */}
+        {/* Top-left badge */}
+        {showBadge ? (
+          <View style={styles.topLeft}>
+            <BlurView intensity={18} tint="light" style={styles.chipBlur}>
+              <Ionicons name="sparkles" size={12} color={colors.text} />
+              <Text style={styles.chipText}>Guest favorite</Text>
+            </BlurView>
+          </View>
+        ) : null}
+
+        {/* Top-right favorite */}
         <TouchableOpacity
-          style={styles.heartButton}
-          activeOpacity={0.7}
+          style={styles.topRightBtn}
+          activeOpacity={0.8}
           onPress={handleFavoritePress}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <BlurView
-            intensity={18}
-            tint="light"
-            style={styles.heartBlurContainer}
-          >
-            <Animated.View
-              style={[
-                styles.heartIconContainer,
-                {
-                  transform: [{ scale: scaleAnim }],
-                },
-              ]}
-            >
+          <BlurView intensity={18} tint="light" style={styles.iconBlur}>
+            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
               <Ionicons
                 name={isFavorited ? "heart" : "heart-outline"}
-                size={14}
-                color={isFavorited ? "#FF3B30" : "#000000"}
+                size={16}
+                color={isFavorited ? "#FF3B30" : colors.text}
               />
             </Animated.View>
           </BlurView>
         </TouchableOpacity>
+
+        {/* Bottom-left rating chip */}
+        <View style={styles.bottomLeft}>
+          <BlurView intensity={18} tint="light" style={styles.ratingChipBlur}>
+            <Ionicons name="star" size={12} color={colors.accent} />
+            <Text style={styles.ratingChipText}>
+              {rating != null && rating !== "" ? rating : "—"}
+            </Text>
+          </BlurView>
+        </View>
       </View>
 
-      {/* Card Content */}
-      <View
-        style={[
-          styles.cardContent,
-          isSmall && styles.cardContentSmall,
-          Platform.OS === "ios" && styles.cardContentIOS,
-        ]}
-      >
+      {/* CONTENT */}
+      <View style={[styles.content, isSmall && styles.contentSmall]}>
         <Text
-          style={[styles.cardTitle, isSmall && styles.cardTitleSmall]}
+          style={[styles.title, isSmall && styles.titleSmall]}
           numberOfLines={1}
         >
           {title}
         </Text>
-        <Text style={[styles.cardPrice, isSmall && styles.cardPriceSmall]}>
-          {price}
-        </Text>
-        <View style={styles.cardRating}>
-          <Text style={styles.starIcon}>★</Text>
-          <Text style={[styles.ratingText, isSmall && styles.ratingTextSmall]}>
-            {rating}
+        <View style={styles.metaRow}>
+          <Text
+            style={[styles.price, isSmall && styles.priceSmall]}
+            numberOfLines={1}
+          >
+            {price}
           </Text>
         </View>
       </View>
@@ -200,151 +178,134 @@ const PlaceCard = ({
 };
 
 const styles = StyleSheet.create({
-  placeCard: {
-    width: (width - 64) * 0.5, // Two large cards with spacing
+  card: {
     marginRight: 12,
-    borderRadius: 12,
+    borderRadius: 18,
     backgroundColor: colors.cardBackground,
-    // Only apply overflow hidden on Android to maintain rounded corners
-    // On iOS, we need overflow visible for shadows to show
-    ...(Platform.OS === "android" && {
-      overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: Platform.OS === "android" ? "hidden" : "visible",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.07,
+        shadowRadius: 14,
+        shadowOffset: { width: 0, height: 6 },
+      },
+      android: { elevation: 3 },
     }),
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  placeCardSmall: {
-    width: (width - 64) * 0.35, // Smaller width for third card
-  },
-  cardImageContainer: {
+
+  media: {
     width: "100%",
-    height: (width - 64) * 0.4,
-    position: "relative",
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
     backgroundColor: colors.surface,
-    // On Android, overflow hidden is handled by parent
-    // On iOS, we need overflow hidden here to clip image corners
-    ...(Platform.OS === "ios" && {
-      borderTopLeftRadius: 12,
-      borderTopRightRadius: 12,
-      overflow: "hidden",
-    }),
+    overflow: "hidden",
+    position: "relative",
   },
-  cardImageContainerIOS: {
-    // Additional iOS-specific styling if needed
-  },
-  cardImageContainerSmall: {
-    height: (width - 64) * 0.35, // Slightly smaller image for small card but proportional
-  },
-  cardImage: {
-    width: "100%",
-    height: "100%",
-  },
-  badge: {
+  mediaImg: { width: "100%", height: "100%" },
+
+  // simple overlay without adding new dependencies
+  mediaGradient: {
     position: "absolute",
-    top: 12,
-    left: 12,
-    backgroundColor: colors.badgeBackground,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 15,
-    height: 30,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    top: 0,
+    backgroundColor: "rgba(0,0,0,0.10)",
   },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: colors.text,
-    fontFamily: fonts.regular,
-  },
-  heartButton: {
+
+  topLeft: { position: "absolute", top: 10, left: 10 },
+  bottomLeft: { position: "absolute", bottom: 10, left: 10 },
+
+  topRightBtn: {
     position: "absolute",
-    top: 12,
-    right: 12,
-    width: 30,
-    height: 30,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  heartBlurContainer: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: colors.badgeBackground,
+    top: 10,
+    right: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     overflow: "hidden",
   },
-  cardContent: {
-    padding: 12,
-    flex: 1,
-    // On iOS, ensure content respects border radius
-    ...(Platform.OS === "ios" && {
-      borderBottomLeftRadius: 12,
-      borderBottomRightRadius: 12,
-      overflow: "hidden",
-    }),
-  },
-  cardContentIOS: {
-    // Additional iOS-specific styling if needed
-  },
-  cardContentSmall: {
-    padding: 10,
-  },
-  cardTitle: {
-    fontSize: 13,
-    color: colors.text,
-    marginBottom: 4,
-    fontFamily: fonts.semiBold,
-  },
-  cardTitleSmall: {
-    fontSize: 10,
-    marginBottom: 3,
-    fontFamily: fonts.semiBold,
-  },
-  cardPrice: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginBottom: 6,
-    fontFamily: fonts.regular,
-  },
-  cardPriceSmall: {
-    fontSize: 12,
-    marginBottom: 4,
-    fontFamily: fonts.regular,
-  },
-  cardRating: {
+
+  chipBlur: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.65)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.45)",
   },
-  starIcon: {
-    fontSize: 14,
-    color: colors.warning,
-    marginRight: 4,
-  },
-  ratingText: {
-    fontSize: 14,
-    fontWeight: "500",
+  chipText: {
+    fontSize: 9,
+    fontFamily: fonts.semiBold,
     color: colors.text,
-    fontFamily: fonts.regular,
   },
-  ratingTextSmall: {
+
+  iconBlur: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.65)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.45)",
+    borderRadius: 17,
+  },
+
+  ratingChipBlur: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.65)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.45)",
+  },
+  ratingChipText: {
+    fontSize: 11,
+    fontFamily: fonts.semiBold,
+    color: colors.text,
+  },
+
+  content: {
+    padding: 12,
+    paddingTop: 10,
+  },
+  contentSmall: {
+    padding: 10,
+    paddingTop: 8,
+  },
+
+  title: {
+    fontSize: 14,
+    fontFamily: fonts.semiBold,
+    color: colors.text,
+    marginBottom: 6,
+    letterSpacing: -0.2,
+  },
+  titleSmall: {
     fontSize: 12,
+    marginBottom: 5,
+  },
+
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  price: {
+    fontSize: 13,
     fontFamily: fonts.regular,
+    color: colors.textSecondary,
+  },
+  priceSmall: {
+    fontSize: 12,
   },
 });
 

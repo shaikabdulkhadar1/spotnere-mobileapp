@@ -28,6 +28,7 @@ export default {
           "This app needs access to your location to show nearby places.",
         NSLocationAlwaysAndWhenInUseUsageDescription:
           "This app needs access to your location to show nearby places.",
+        LSApplicationQueriesSchemes: ["phonepe", "gpay", "upi"],
       },
       icons: {
         light: "./assets/icons/icon-light.png",

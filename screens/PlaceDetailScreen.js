@@ -1,3 +1,14 @@
+/**
+ * PlaceDetailScreen — Modern Redesign (2026 “premium card + glass + soft gradient” UI)
+ * ✅ Keeps your existing logic (Supabase fetch, favorites, reviews carousel, vendor info, booking modal)
+ * ✅ Uses your current libs/imports: expo-linear-gradient, expo-blur, expo-image, Ionicons
+ * ✅ Cleaner hierarchy: Hero (image + title + chips) → Quick Actions → About → Details → Hours → Reviews → Vendor → CTA
+ *
+ * NOTE:
+ * - I kept all your fetching + parsing logic, just reorganized UI + styles.
+ * - You can copy-paste as-is.
+ */
+
 import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
@@ -10,6 +21,10 @@ import {
   Platform,
   Linking,
   Animated,
+  Share,
+  Modal,
+  TextInput,
+  Alert,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
@@ -29,53 +44,60 @@ import BookingModal from "../components/BookingModal";
 
 const { width, height } = Dimensions.get("window");
 
+const CARD_MARGIN = 12;
+const ARROW_SIZE = 32;
+const CARD_WIDTH = width - 40 - ARROW_SIZE * 2;
+
+const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+
 const PlaceDetailScreen = ({ placeId, onClose }) => {
   const [placeDetails, setPlaceDetails] = useState(null);
   const [reviews, setReviews] = useState([]);
+  const [vendor, setVendor] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isFavorited, setIsFavorited] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
+  const [showAddReviewModal, setShowAddReviewModal] = useState(false);
+  const [addReviewText, setAddReviewText] = useState("");
+  const [addReviewRating, setAddReviewRating] = useState(0);
+  const [submittingReview, setSubmittingReview] = useState(false);
+
   const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const reviewsScrollRef = useRef(null);
+  const [scrollX, setScrollX] = useState(0);
 
   useEffect(() => {
     if (placeId) {
       fetchPlaceDetails();
       fetchReviews();
+      fetchVendorDetails();
       checkFavoriteStatus();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placeId]);
 
-  // Check favorite status on mount
   const checkFavoriteStatus = async () => {
-    if (placeId) {
-      const user = await getCurrentUser();
-      if (user && user.id) {
-        const favorited = await isFavoriteInDatabase(user.id, placeId);
-        setIsFavorited(favorited);
-      }
+    if (!placeId) return;
+    const user = await getCurrentUser();
+    if (user?.id) {
+      const favorited = await isFavoriteInDatabase(user.id, placeId);
+      setIsFavorited(favorited);
     }
   };
 
   const handleFavoritePress = async () => {
-    if (!placeId) {
-      console.warn("Place ID is required to favorite");
-      return;
-    }
-
+    if (!placeId) return;
     const user = await getCurrentUser();
-    if (!user || !user.id) {
-      console.warn("User must be logged in to favorite places");
-      return;
-    }
+    if (!user?.id) return;
 
     const newFavoriteState = !isFavorited;
     setIsFavorited(newFavoriteState);
 
-    // Heart pop animation
     Animated.sequence([
       Animated.spring(scaleAnim, {
-        toValue: 1.3,
+        toValue: 1.22,
         friction: 3,
         tension: 40,
         useNativeDriver: true,
@@ -88,21 +110,36 @@ const PlaceDetailScreen = ({ placeId, onClose }) => {
       }),
     ]).start();
 
-    // Save or remove from database
     if (newFavoriteState) {
       const result = await saveFavoriteToDatabase(user.id, placeId);
-      if (!result.success) {
-        // Revert state if save failed
-        setIsFavorited(false);
-        console.error("Failed to save favorite:", result.error);
-      }
+      if (!result.success) setIsFavorited(false);
     } else {
       const result = await removeFavoriteFromDatabase(user.id, placeId);
-      if (!result.success) {
-        // Revert state if remove failed
-        setIsFavorited(true);
-        console.error("Failed to remove favorite:", result.error);
-      }
+      if (!result.success) setIsFavorited(true);
+    }
+  };
+
+  const handleSharePlace = async () => {
+    try {
+      const name =
+        placeDetails?.title ||
+        placeDetails?.name ||
+        placeDetails?.place_name ||
+        "Place";
+      const city = placeDetails?.city || "";
+      const state = placeDetails?.state ? `, ${placeDetails.state}` : "";
+      const url =
+        placeDetails?.website ||
+        placeDetails?.website_url ||
+        placeDetails?.url ||
+        placeDetails?.location_map_link ||
+        "";
+      const msg = `${name}${city ? ` — ${city}${state}` : ""}${
+        url ? `\n${url}` : ""
+      }`;
+      await Share.share({ message: msg, title: "Spotnere Place" });
+    } catch (e) {
+      // ignore
     }
   };
 
@@ -117,15 +154,10 @@ const PlaceDetailScreen = ({ placeId, onClose }) => {
         .eq("id", placeId)
         .single();
 
-      if (fetchError) {
-        console.error("❌ Error fetching place details:", fetchError);
-        throw fetchError;
-      }
-
+      if (fetchError) throw fetchError;
       setPlaceDetails(data);
     } catch (err) {
-      console.error("Error fetching place details:", err);
-      setError(err.message || "Failed to fetch place details");
+      setError(err?.message || "Failed to fetch place details");
     } finally {
       setLoading(false);
     }
@@ -133,50 +165,168 @@ const PlaceDetailScreen = ({ placeId, onClose }) => {
 
   const fetchReviews = async () => {
     try {
-      // Try to fetch reviews from a reviews table, or use placeholder data
       const { data, error: fetchError } = await supabase
         .from("reviews")
-        .select("*")
+        .select(
+          `
+          user_id,
+          place_id,
+          review,
+          rating,
+          created_at,
+          user:users!user_id(first_name, last_name)
+        `,
+        )
         .eq("place_id", placeId)
-        .order("created_at", { ascending: false })
-        .limit(5);
+        .order("created_at", { ascending: false });
 
       if (fetchError) {
-        console.warn("⚠️ No reviews table or error:", fetchError);
-        // Use placeholder reviews if table doesn't exist
-        setReviews([
-          {
-            id: 1,
-            text: "Absolutely loved the ambiance at this place! The live music created the perfect vibe.",
-            user_name: "Emma R.",
-            rating: 4.5,
-            user_avatar:
-              "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop",
-          },
-          {
-            id: 2,
-            text: "A hidden gem! The food was hearty, and the experience was memorable.",
-            user_name: "James T.",
-            rating: 4.0,
-            user_avatar:
-              "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
-          },
-        ]);
-      } else {
-        setReviews(data || []);
+        const { data: reviewsData, error: reviewsError } = await supabase
+          .from("reviews")
+          .select("user_id, place_id, review, rating, created_at")
+          .eq("place_id", placeId)
+          .order("created_at", { ascending: false });
+
+        if (reviewsError) {
+          setReviews([]);
+          return;
+        }
+
+        const formatted = (reviewsData || []).map((r, index) => ({
+          id: r.user_id + "-" + index,
+          review: r.review,
+          rating: r.rating,
+          user_name: "User",
+          user_avatar:
+            "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=50&h=50&fit=crop",
+        }));
+        setReviews(formatted);
+        return;
       }
+
+      const formatted = (data || []).map((r, index) => ({
+        id: r.user_id + "-" + index,
+        review: r.review,
+        rating: r.rating,
+        user_name: r.user
+          ? `${r.user.first_name || ""} ${r.user.last_name || ""}`.trim() ||
+            "User"
+          : "User",
+        user_avatar:
+          "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=50&h=50&fit=crop",
+      }));
+      setReviews(formatted);
     } catch (err) {
-      console.error("Error fetching reviews:", err);
+      setReviews([]);
     }
+  };
+
+  const fetchVendorDetails = async () => {
+    try {
+      const { data, error: fetchError } = await supabase
+        .from("vendors")
+        .select(
+          "business_name, vendor_full_name, vendor_phone_number, vendor_email, vendor_address, vendor_city, vendor_state, vendor_country, vendor_postal_code, upi_id",
+        )
+        .eq("place_id", placeId)
+        .maybeSingle();
+
+      if (fetchError) {
+        setVendor(null);
+        return;
+      }
+      setVendor(data);
+    } catch (err) {
+      setVendor(null);
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    const user = await getCurrentUser();
+    if (!user?.id) {
+      Alert.alert(
+        "Login required",
+        "Please log in to add a review.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
+    const trimmed = addReviewText?.trim() || "";
+    if (!trimmed) {
+      Alert.alert("Review required", "Please write your review.", [
+        { text: "OK" },
+      ]);
+      return;
+    }
+
+    if (addReviewRating < 1 || addReviewRating > 5) {
+      Alert.alert("Rating required", "Please select a rating (1–5 stars).", [
+        { text: "OK" },
+      ]);
+      return;
+    }
+
+    try {
+      setSubmittingReview(true);
+
+      const insertPayload = {
+        user_id: user.id,
+        place_id: placeId,
+        review: trimmed,
+        rating: Number(addReviewRating),
+      };
+
+      const { data, error: insertError } = await supabase
+        .from("reviews")
+        .insert([insertPayload])
+        .select();
+
+      if (insertError) {
+        console.error("Error adding review:", insertError);
+        Alert.alert("Error", insertError.message || "Failed to add review.", [
+          { text: "OK" },
+        ]);
+        return;
+      }
+
+      setShowAddReviewModal(false);
+      setAddReviewText("");
+      setAddReviewRating(0);
+      await fetchReviews();
+      Alert.alert("Success", "Your review has been posted.", [{ text: "OK" }]);
+    } catch (err) {
+      Alert.alert("Error", "Failed to add review. Please try again.", [
+        { text: "OK" },
+      ]);
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
+  const openAddReviewModal = async () => {
+    const user = await getCurrentUser();
+    if (!user?.id) {
+      Alert.alert(
+        "Login required",
+        "Please log in to add a review.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+    setAddReviewText("");
+    setAddReviewRating(0);
+    setShowAddReviewModal(true);
   };
 
   if (loading) {
     return (
       <View style={styles.container}>
         <StatusBar style="dark" />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Loading place details...</Text>
+        <View style={styles.stateCenter}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.stateTitle}>Loading place…</Text>
+          <Text style={styles.stateSubtitle}>Fetching latest details</Text>
         </View>
       </View>
     );
@@ -186,71 +336,132 @@ const PlaceDetailScreen = ({ placeId, onClose }) => {
     return (
       <View style={styles.container}>
         <StatusBar style="dark" />
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error || "Place not found"}</Text>
+        <View style={styles.stateCenter}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={36}
+            color={colors.error}
+          />
+          <Text style={[styles.stateTitle, { marginTop: 10 }]}>
+            {error || "Place not found"}
+          </Text>
           <TouchableOpacity
-            style={styles.retryButton}
+            style={styles.primaryBtn}
             onPress={fetchPlaceDetails}
           >
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.primaryBtnText}>Retry</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.ghostBtn} onPress={onClose}>
+            <Text style={styles.ghostBtnText}>Go back</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   }
 
-  const rating = parseFloat(
-    placeDetails.rating || placeDetails.average_rating || 0
-  );
+  // Prefer avg from reviews; fallback to place's stored rating
+  const ratingFromReviews =
+    reviews.length > 0
+      ? reviews.reduce(
+          (sum, r) => sum + parseFloat(r.rating ?? 0),
+          0
+        ) / reviews.length
+      : null;
+  const rawRating =
+    ratingFromReviews ??
+    parseFloat(placeDetails.rating || placeDetails.average_rating || 0);
+  const rating = isNaN(rawRating)
+    ? 0
+    : Math.min(5, Math.max(0, rawRating));
   const likes = placeDetails.likes || placeDetails.favorites || 1300;
+
   const imageUri =
     placeDetails.banner_image_link ||
     placeDetails.image ||
-    placeDetails.photo_url;
+    placeDetails.photo_url ||
+    "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=1200&h=900&fit=crop";
 
-  // Utility function to capitalize first letter
+  const placeName =
+    placeDetails.title ||
+    placeDetails.name ||
+    placeDetails.place_name ||
+    "Place";
+
+  const locationText = `${placeDetails.city || placeDetails.location || "Location"}${
+    placeDetails.state ? `, ${placeDetails.state}` : ""
+  }`;
+
   const capitalizeFirst = (text) => {
     if (!text) return "";
     return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
   };
 
-  // Utility function to format amenities: capitalize first letter and replace dashes with spaces
   const formatAmenity = (amenity) => {
     if (!amenity) return "";
     return amenity
-      .replace(/-/g, " ") // Replace all dashes with spaces
+      .replace(/-/g, " ")
       .split(" ")
-      .map((word) => capitalizeFirst(word)) // Capitalize first letter of each word
+      .map((w) => capitalizeFirst(w))
       .join(" ");
   };
 
-  // Render opening hours
+  const openWebsite = () => {
+    let url =
+      placeDetails.website || placeDetails.website_url || placeDetails.url;
+    if (!url) return;
+    if (!url.startsWith("http://") && !url.startsWith("https://"))
+      url = `https://${url}`;
+    Linking.openURL(url);
+  };
+
+  const openMaps = () => {
+    const link = placeDetails.location_map_link;
+    if (link) return Linking.openURL(link);
+
+    // fallback: try geo query
+    const q = encodeURIComponent(`${placeName} ${locationText}`);
+    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${q}`);
+  };
+
+  const callPhone = () => {
+    const phone =
+      placeDetails.phone ||
+      placeDetails.phone_number ||
+      placeDetails.contact_phone;
+    if (phone) Linking.openURL(`tel:${phone}`);
+  };
+
+  // Hours renderer (supports object/string/legacy fallback)
   const renderOpeningHours = (place) => {
     let hours = null;
 
-    // Try different possible field names for opening hours
     if (place.opening_hours_json) {
       try {
         hours =
           typeof place.opening_hours_json === "string"
             ? JSON.parse(place.opening_hours_json)
             : place.opening_hours_json;
-      } catch (e) {
-        console.error("Error parsing opening_hours_json:", e);
-      }
+      } catch {}
     } else if (place.opening_hours) {
-      hours =
-        typeof place.opening_hours === "string"
-          ? JSON.parse(place.opening_hours)
-          : place.opening_hours;
+      try {
+        hours =
+          typeof place.opening_hours === "string"
+            ? JSON.parse(place.opening_hours)
+            : place.opening_hours;
+      } catch {}
     } else if (place.hours) {
-      hours =
-        typeof place.hours === "string" ? JSON.parse(place.hours) : place.hours;
+      try {
+        hours =
+          typeof place.hours === "string"
+            ? JSON.parse(place.hours)
+            : place.hours;
+      } catch {
+        hours = place.hours;
+      }
     }
 
-    // Default hours if not available
     if (!hours) {
-      const defaultHours = {
+      hours = {
         Monday: "9:00 AM - 10:00 PM",
         Tuesday: "9:00 AM - 10:00 PM",
         Wednesday: "9:00 AM - 10:00 PM",
@@ -259,7 +470,6 @@ const PlaceDetailScreen = ({ placeId, onClose }) => {
         Saturday: "10:00 AM - 11:00 PM",
         Sunday: "10:00 AM - 9:00 PM",
       };
-      hours = defaultHours;
     }
 
     const days = [
@@ -272,823 +482,1277 @@ const PlaceDetailScreen = ({ placeId, onClose }) => {
       "Sunday",
     ];
 
+    const today = new Date().toLocaleDateString("en-US", { weekday: "long" });
+
     return days.map((day, index) => {
-      let dayHoursRaw =
-        hours[day] || hours[day.toLowerCase()] || hours[index] || null;
+      let raw = hours[day] || hours[day.toLowerCase()] || hours[index] || null;
 
-      // Handle different formats: object with {day, open, close}, string, or array
-      let dayHours = "Closed";
-
-      if (dayHoursRaw) {
-        if (typeof dayHoursRaw === "string") {
-          dayHours = dayHoursRaw;
-        } else if (typeof dayHoursRaw === "object") {
-          // Handle object format: {day, open, close} or {open, close}
-          if (dayHoursRaw.open && dayHoursRaw.close) {
-            dayHours = `${dayHoursRaw.open} - ${dayHoursRaw.close}`;
-          } else if (
-            dayHoursRaw.close === null ||
-            dayHoursRaw.close === false
-          ) {
-            dayHours = "Closed";
-          } else {
-            dayHours = JSON.stringify(dayHoursRaw); // Fallback
-          }
-        } else if (Array.isArray(dayHoursRaw)) {
-          // Handle array format: ["9:00 AM", "10:00 PM"]
-          if (dayHoursRaw.length >= 2) {
-            dayHours = `${dayHoursRaw[0]} - ${dayHoursRaw[1]}`;
-          } else if (dayHoursRaw.length === 1) {
-            dayHours = dayHoursRaw[0];
-          }
+      let value = "Closed";
+      if (raw) {
+        if (typeof raw === "string") value = raw;
+        else if (typeof raw === "object") {
+          if (raw.open && raw.close) value = `${raw.open} - ${raw.close}`;
+          else if (raw.close === null || raw.close === false) value = "Closed";
+          else value = "Hours available";
+        } else if (Array.isArray(raw)) {
+          if (raw.length >= 2) value = `${raw[0]} - ${raw[1]}`;
+          else if (raw.length === 1) value = raw[0];
         }
       }
 
-      const isToday =
-        new Date().toLocaleDateString("en-US", { weekday: "long" }) === day;
-      const isLast = index === days.length - 1;
+      const isToday = today === day;
 
       return (
-        <View
-          key={day}
-          style={[
-            styles.settingsRow,
-            isToday && styles.settingsRowToday,
-            isLast && styles.settingsRowLast,
-          ]}
-        >
-          <Text
-            style={[
-              styles.settingsRowLabel,
-              isToday && styles.settingsRowLabelToday,
-            ]}
-          >
-            {day}
+        <View key={day} style={[styles.row, isToday && styles.rowToday]}>
+          <Text style={[styles.rowLabel, isToday && styles.rowLabelToday]}>
+            {day.slice(0, 3)}
           </Text>
-          <Text
-            style={[
-              styles.settingsRowValue,
-              isToday && styles.settingsRowValueToday,
-            ]}
-          >
-            {dayHours}
+          <Text style={[styles.rowValue, isToday && styles.rowValueToday]}>
+            {value}
           </Text>
         </View>
       );
     });
   };
 
+  const amenitiesArray = Array.isArray(placeDetails.amenities)
+    ? placeDetails.amenities.filter(Boolean)
+    : typeof placeDetails.amenities === "string"
+      ? placeDetails.amenities
+          .split(",")
+          .map((a) => a.trim())
+          .filter(Boolean)
+      : [];
+
+  const pageIndex = Math.round(scrollX / (CARD_WIDTH + CARD_MARGIN));
+  const dotsCount = clamp(reviews.length, 0, 8); // keep dots sane
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
+
       <ScrollView
-        style={styles.scrollView}
+        style={styles.scroll}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Hero Image with Title Overlay */}
-        <View style={styles.heroImageContainer}>
+        {/* HERO */}
+        <View style={styles.hero}>
           <ExpoImage
-            source={
-              imageUri
-                ? { uri: imageUri }
-                : {
-                    uri: "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800&h=600&fit=crop",
-                  }
-            }
-            style={styles.heroImage}
+            source={{ uri: imageUri }}
+            style={styles.heroImg}
             contentFit="cover"
             placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
           />
 
-          {/* White Gradient Overlay at Bottom - Blends into image */}
+          {/* Overlay gradients */}
+
           <LinearGradient
             colors={[
               "transparent",
-              "rgba(248, 249, 244, 0.1)",
-              "rgba(248, 249, 244, 0.65)",
-              colors.background,
+              "rgba(0,0,0,0.15)",
+              "rgba(0,0,0,0.55)",
+              "rgba(0,0,0,0.72)",
             ]}
-            locations={[0, 0.3, 0.7, 1]}
-            style={styles.imageGradientOverlay}
+            locations={[0, 0.35, 0.7, 1]}
+            style={styles.heroBottomFade}
           />
 
-          {/* Header with Back Button and Heart */}
-          <View style={styles.header}>
-            <TouchableOpacity style={styles.backButton} onPress={onClose}>
-              <Ionicons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
+          {/* Top controls */}
+          <View style={styles.heroTopBar}>
             <TouchableOpacity
-              style={styles.iconButton}
-              onPress={handleFavoritePress}
-              activeOpacity={0.7}
+              style={styles.circleBtn}
+              onPress={onClose}
+              activeOpacity={0.85}
             >
               <BlurView
-                intensity={18}
+                intensity={75}
                 tint="light"
-                style={styles.heartBlurContainer}
+                style={styles.circleBtnBlur}
               >
-                <Animated.View
-                  style={[
-                    styles.heartIconContainer,
-                    {
-                      transform: [{ scale: scaleAnim }],
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name={isFavorited ? "heart" : "heart-outline"}
-                    size={18}
-                    color={isFavorited ? "#FF3B30" : "#000000"}
-                  />
-                </Animated.View>
+                <Ionicons name="arrow-back" size={20} color="#000" />
               </BlurView>
             </TouchableOpacity>
+
+            <View style={styles.heroTopRight}>
+              <TouchableOpacity
+                style={styles.circleBtn}
+                onPress={handleSharePlace}
+                activeOpacity={0.85}
+              >
+                <BlurView
+                  intensity={75}
+                  tint="light"
+                  style={styles.circleBtnBlur}
+                >
+                  <Ionicons name="share-outline" size={20} color="#000" />
+                </BlurView>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.circleBtn}
+                onPress={handleFavoritePress}
+                activeOpacity={0.85}
+              >
+                <BlurView
+                  intensity={75}
+                  tint="light"
+                  style={styles.circleBtnBlur}
+                >
+                  <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+                    <Ionicons
+                      name={isFavorited ? "heart" : "heart-outline"}
+                      size={20}
+                      color={isFavorited ? "#FF3B30" : "#000"}
+                    />
+                  </Animated.View>
+                </BlurView>
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {/* Title and Info Overlay on Image */}
-          <View style={styles.titleOverlay}>
-            <Text style={styles.title}>
-              {placeDetails.title ||
-                placeDetails.name ||
-                placeDetails.place_name ||
-                "Place"}
+          {/* Bottom content in hero */}
+          <View style={styles.heroMeta}>
+            <View style={styles.heroChipsRow}>
+              <View style={styles.heroChip}>
+                <Ionicons name="shield-checkmark" size={14} color="#000" />
+                <Text style={styles.heroChipText}>
+                  {capitalizeFirst(placeDetails.category || "Category")}
+                </Text>
+              </View>
+              {placeDetails.sub_category ? (
+                <View style={[styles.heroChip, { opacity: 0.95 }]}>
+                  <Ionicons name="pricetag-outline" size={14} color="#000" />
+                  <Text style={styles.heroChipText}>
+                    {capitalizeFirst(placeDetails.sub_category)}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            <Text style={styles.heroTitle} numberOfLines={2}>
+              {placeName}
             </Text>
+
+            <View style={styles.heroStatsRow}>
+              <View style={styles.heroStat}>
+                <Ionicons name="location" size={14} color="#fff" />
+                <Text style={styles.heroStatText} numberOfLines={1}>
+                  {locationText}
+                </Text>
+              </View>
+
+              <View style={styles.heroStatDivider} />
+
+              <View style={styles.heroStat}>
+                <Ionicons name="star" size={14} color={colors.accent} />
+                <Text style={styles.heroStatText}>{rating.toFixed(1)}</Text>
+              </View>
+
+              <View style={styles.heroStatDivider} />
+
+              <View style={styles.heroStat}>
+                <Ionicons name="heart" size={14} color="#FF3B30" />
+                <Text style={styles.heroStatText}>
+                  {(likes / 1000).toFixed(1)}k
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
 
-        {/* Main Content - Light Theme */}
-        <View style={styles.content}>
-          {/* Pub Badge */}
-          <TouchableOpacity style={styles.badgeButton}>
-            <Ionicons name="shield-checkmark" size={16} />
-            <Text style={styles.badgeText}>
-              {capitalizeFirst(placeDetails.category || "Category")}
-            </Text>
-          </TouchableOpacity>
-
-          <View style={styles.locationInfoRow}>
-            <Ionicons name="location" size={16} color="#90EE90" />
-            <Text style={styles.location}>
-              {placeDetails.city || placeDetails.location || "Location"}
-              {placeDetails.state && `, ${placeDetails.state}`}
-            </Text>
-            <View style={styles.ratingLikesRow}>
-              <Ionicons name="star" size={16} color="#90EE90" />
-              <Text style={styles.ratingText}>{rating.toFixed(1)} Rate</Text>
+        {/* CONTENT */}
+        <View style={styles.body}>
+          {/* Quick actions */}
+          <View style={styles.quickRow}>
+            <TouchableOpacity
+              style={styles.quickBtn}
+              onPress={openMaps}
+              activeOpacity={0.9}
+            >
               <Ionicons
-                name="heart"
-                size={16}
-                color="#90EE90"
-                style={{ marginLeft: 12 }}
+                name="navigate-outline"
+                size={18}
+                color={colors.primary}
               />
-              <Text style={styles.likesText}>
-                {(likes / 1000).toFixed(1)} K
-              </Text>
-            </View>
+              <Text style={styles.quickBtnText}>Directions</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickBtn}
+              onPress={openWebsite}
+              activeOpacity={0.9}
+            >
+              <Ionicons name="globe-outline" size={18} color={colors.primary} />
+              <Text style={styles.quickBtnText}>Website</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickBtn}
+              onPress={callPhone}
+              activeOpacity={0.9}
+            >
+              <Ionicons name="call-outline" size={18} color={colors.primary} />
+              <Text style={styles.quickBtnText}>Call</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Description */}
-          <View style={styles.descriptionSection}>
-            <Text style={styles.description}>
+          {/* About */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>About</Text>
+            <Text style={styles.sectionText}>
               {placeDetails.description ||
-                "A Scottish-themed pub in London offering whiskeys, craft beers, and traditional dishes, with rustic decor and live folk music. A favorite among locals and tourists."}
+                "A Scottish-themed pub offering whiskeys, craft beers, and traditional dishes — a favorite among locals and tourists."}
             </Text>
           </View>
 
-          {/* Place Details Section */}
-          <View style={styles.settingsCard}>
-            <Text style={styles.settingsCardTitle}>Details</Text>
-            <View style={styles.settingsCardContent}>
-              {(() => {
-                const rows = [];
-
-                // Average Price
-                if (
-                  placeDetails.avg_price ||
-                  placeDetails.price_per_night ||
-                  placeDetails.price
-                ) {
-                  rows.push({
-                    key: "price",
-                    element: (
-                      <View key="price" style={styles.settingsRow}>
-                        <Text style={styles.settingsRowLabel}>
-                          Average Price
-                        </Text>
-                        <Text style={styles.settingsRowValue}>
-                          $
-                          {placeDetails.avg_price ||
-                            placeDetails.price_per_night ||
-                            placeDetails.price}{" "}
-                          {placeDetails.price_unit || "per person"}
-                        </Text>
-                      </View>
-                    ),
-                  });
-                }
-
-                // Amenities
-                if (placeDetails.amenities) {
-                  rows.push({
-                    key: "amenities",
-                    element: (
-                      <View key="amenities" style={styles.settingsRow}>
-                        <Text style={styles.settingsRowLabel}>Amenities</Text>
-                        <View style={styles.settingsRowValueContainer}>
-                          {Array.isArray(placeDetails.amenities) ? (
-                            <View style={styles.amenitiesList}>
-                              {placeDetails.amenities
-                                .slice(0, 3)
-                                .map((amenity, index) => (
-                                  <Text key={index} style={styles.amenityChip}>
-                                    {formatAmenity(amenity)}
-                                  </Text>
-                                ))}
-                              {placeDetails.amenities.length > 3 && (
-                                <Text style={styles.amenityChip}>
-                                  +{placeDetails.amenities.length - 3}
-                                </Text>
-                              )}
-                            </View>
-                          ) : (
-                            <Text
-                              style={styles.settingsRowValue}
-                              numberOfLines={1}
-                            >
-                              {formatAmenity(placeDetails.amenities)}
-                            </Text>
-                          )}
-                        </View>
-                      </View>
-                    ),
-                  });
-                }
-
-                // Phone Number
-                if (
-                  placeDetails.phone ||
-                  placeDetails.phone_number ||
-                  placeDetails.contact_phone
-                ) {
-                  rows.push({
-                    key: "phone",
-                    element: (
-                      <TouchableOpacity
-                        key="phone"
-                        style={styles.settingsRow}
-                        onPress={() => {
-                          const phone =
-                            placeDetails.phone ||
-                            placeDetails.phone_number ||
-                            placeDetails.contact_phone;
-                          Linking.openURL(`tel:${phone}`);
-                        }}
-                      >
-                        <Text style={styles.settingsRowLabel}>Phone</Text>
-                        <View style={styles.settingsRowRight}>
-                          <Text style={styles.settingsRowValue}>
-                            {placeDetails.phone ||
-                              placeDetails.phone_number ||
-                              placeDetails.contact_phone}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    ),
-                  });
-                }
-
-                // Website
-                if (
-                  placeDetails.website ||
-                  placeDetails.website_url ||
-                  placeDetails.url
-                ) {
-                  rows.push({
-                    key: "website",
-                    element: (
-                      <TouchableOpacity
-                        key="website"
-                        style={styles.settingsRow}
-                        onPress={() => {
-                          let url =
-                            placeDetails.website ||
-                            placeDetails.website_url ||
-                            placeDetails.url;
-                          if (
-                            !url.startsWith("http://") &&
-                            !url.startsWith("https://")
-                          ) {
-                            url = `https://${url}`;
-                          }
-                          Linking.openURL(url);
-                        }}
-                      >
-                        <Text style={styles.settingsRowLabel}>Website</Text>
-                        <View style={styles.settingsRowRight}>
-                          <Text
-                            style={[
-                              styles.settingsRowValue,
-                              styles.websiteText,
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {placeDetails.website ||
-                              placeDetails.website_url ||
-                              placeDetails.url}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    ),
-                  });
-                }
-
-                return rows.map((row, index) => {
-                  const isLast = index === rows.length - 1;
-                  return (
-                    <View
-                      key={row.key}
-                      style={isLast && styles.settingsRowLast}
-                    >
-                      {row.element}
-                    </View>
-                  );
-                });
-              })()}
+          {/* Details card */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Details</Text>
             </View>
+
+            {/* Price */}
+            {placeDetails.avg_price ||
+            placeDetails.price_per_night ||
+            placeDetails.price ? (
+              <View style={styles.row}>
+                <Text style={styles.rowLabel}>Avg price</Text>
+                <Text style={styles.rowValue}>
+                  $
+                  {placeDetails.avg_price ||
+                    placeDetails.price_per_night ||
+                    placeDetails.price}{" "}
+                  {placeDetails.price_unit || "per person"}
+                </Text>
+              </View>
+            ) : null}
+
+            {/* Amenities */}
+            {amenitiesArray.length > 0 ? (
+              <View style={[styles.row, { alignItems: "flex-start" }]}>
+                <Text style={styles.rowLabel}>Amenities</Text>
+                <View style={styles.amenitiesWrap}>
+                  {amenitiesArray.slice(0, 6).map((a, idx) => (
+                    <View key={`${a}-${idx}`} style={styles.amenityPill}>
+                      <Text style={styles.amenityPillText}>
+                        {formatAmenity(a)}
+                      </Text>
+                    </View>
+                  ))}
+                  {amenitiesArray.length > 6 ? (
+                    <View style={[styles.amenityPill, styles.amenityMore]}>
+                      <Text style={styles.amenityPillText}>
+                        +{amenitiesArray.length - 6}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+
+            {/* Phone */}
+            {placeDetails.phone ||
+            placeDetails.phone_number ||
+            placeDetails.contact_phone ? (
+              <TouchableOpacity
+                style={styles.row}
+                onPress={callPhone}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.rowLabel}>Phone</Text>
+                <View style={styles.rowRight}>
+                  <Text style={[styles.rowValue, styles.linkText]}>
+                    {placeDetails.phone ||
+                      placeDetails.phone_number ||
+                      placeDetails.contact_phone}
+                  </Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={16}
+                    color={colors.textSecondary}
+                  />
+                </View>
+              </TouchableOpacity>
+            ) : null}
+
+            {/* Website */}
+            {placeDetails.website ||
+            placeDetails.website_url ||
+            placeDetails.url ? (
+              <TouchableOpacity
+                style={[styles.row, styles.rowLast]}
+                onPress={openWebsite}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.rowLabel}>Website</Text>
+                <View style={styles.rowRight}>
+                  <Text
+                    style={[styles.rowValue, styles.linkText]}
+                    numberOfLines={1}
+                  >
+                    {placeDetails.website ||
+                      placeDetails.website_url ||
+                      placeDetails.url}
+                  </Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={16}
+                    color={colors.textSecondary}
+                  />
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.rowLast} />
+            )}
           </View>
 
-          {/* Opening Hours Section */}
-          <View style={styles.settingsCard}>
-            <Text style={styles.settingsCardTitle}>Opening Hours</Text>
-            <View style={styles.settingsCardContent}>
+          {/* Hours card */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Opening hours</Text>
+            </View>
+            <View style={{ paddingTop: 2 }}>
               {renderOpeningHours(placeDetails)}
             </View>
           </View>
 
-          {/* Reviews Section Header */}
+          {/* Reviews */}
           <View style={styles.reviewsHeader}>
-            <Text style={styles.reviewsTitle}>Reviews</Text>
-            <TouchableOpacity style={styles.discoverButton}>
-              <Text style={styles.discoverButtonText}>Add a review</Text>
+            <Text style={styles.sectionTitle}>Reviews</Text>
+            <TouchableOpacity
+              style={styles.smallPrimary}
+              activeOpacity={0.9}
+              onPress={openAddReviewModal}
+            >
+              <Text style={styles.smallPrimaryText}>Add</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Reviews List */}
-          <View style={styles.reviewsList}>
+          <View style={styles.reviewsWrap}>
             {reviews.length > 0 ? (
-              reviews.map((review) => (
-                <View key={review.id} style={styles.reviewCard}>
-                  <Text style={styles.reviewText}>
-                    {review.text || review.review_text || review.comment}
-                  </Text>
-                  <View style={styles.reviewFooter}>
-                    <View style={styles.reviewUser}>
-                      <ExpoImage
-                        source={{
-                          uri:
-                            review.user_avatar ||
-                            review.avatar ||
-                            "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=50&h=50&fit=crop",
-                        }}
-                        style={styles.reviewAvatar}
-                        contentFit="cover"
-                      />
-                      <Text style={styles.reviewUserName}>
-                        {review.user_name || review.name || `User ${review.id}`}
-                      </Text>
-                    </View>
-                    <View style={styles.reviewRating}>
-                      <Ionicons name="star-outline" size={16} color="#333" />
-                      <Text style={styles.reviewRatingText}>
-                        {(review.rating || 4.0).toFixed(1)} Rate
-                      </Text>
-                    </View>
-                  </View>
+              <>
+                <View style={styles.carouselShell}>
+                  <ScrollView
+                    ref={reviewsScrollRef}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={[
+                      styles.carouselContent,
+                      { paddingHorizontal: ARROW_SIZE },
+                    ]}
+                    snapToInterval={CARD_WIDTH + CARD_MARGIN}
+                    snapToAlignment="start"
+                    decelerationRate="fast"
+                    onScroll={(e) => setScrollX(e.nativeEvent.contentOffset.x)}
+                    scrollEventThrottle={16}
+                  >
+                    {reviews.map((review) => {
+                      const r = parseFloat(review.rating ?? 0);
+                      const text =
+                        review.review ||
+                        review.text ||
+                        review.review_text ||
+                        review.comment ||
+                        "";
+                      const name = review.user_name || review.name || "User";
+
+                      const shareReview = () => {
+                        Share.share({
+                          message: `"${text}" — ${name} (${r.toFixed(1)}★)`,
+                          title: "Review",
+                        });
+                      };
+
+                      return (
+                        <View
+                          key={review.id}
+                          style={[
+                            styles.reviewCard,
+                            { width: CARD_WIDTH, marginRight: CARD_MARGIN },
+                          ]}
+                        >
+                          <View style={styles.reviewTop}>
+                            <View style={styles.reviewUser}>
+                              <ExpoImage
+                                source={{
+                                  uri:
+                                    review.user_avatar ||
+                                    review.avatar ||
+                                    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop",
+                                }}
+                                style={styles.avatar}
+                                contentFit="cover"
+                              />
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.userName} numberOfLines={1}>
+                                  {name}
+                                </Text>
+                                <Text style={styles.userRole}>Visitor</Text>
+                              </View>
+                            </View>
+
+                            <TouchableOpacity
+                              onPress={shareReview}
+                              activeOpacity={0.85}
+                            >
+                              <View style={styles.iconPill}>
+                                <Ionicons
+                                  name="share-outline"
+                                  size={18}
+                                  color={colors.textSecondary}
+                                />
+                              </View>
+                            </TouchableOpacity>
+                          </View>
+
+                          <Text style={styles.reviewText} numberOfLines={4}>
+                            {text}
+                          </Text>
+
+                          <View style={styles.reviewBottom}>
+                            <View style={styles.stars}>
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <Ionicons
+                                  key={s}
+                                  name={r >= s ? "star" : "star-outline"}
+                                  size={16}
+                                  color={colors.accent}
+                                  style={{ marginRight: 2 }}
+                                />
+                              ))}
+                            </View>
+                            <Text style={styles.ratingPill}>
+                              {r.toFixed(1)}
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+
+                  {/* arrows */}
+                  <TouchableOpacity
+                    style={[styles.arrow, styles.arrowLeft]}
+                    onPress={() => {
+                      const newX = Math.max(
+                        0,
+                        scrollX - (CARD_WIDTH + CARD_MARGIN),
+                      );
+                      reviewsScrollRef.current?.scrollTo({
+                        x: newX,
+                        animated: true,
+                      });
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons
+                      name="chevron-back"
+                      size={22}
+                      color={colors.text}
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.arrow, styles.arrowRight]}
+                    onPress={() => {
+                      const maxScroll =
+                        (reviews.length - 1) * (CARD_WIDTH + CARD_MARGIN);
+                      const newX = Math.min(
+                        maxScroll,
+                        scrollX + (CARD_WIDTH + CARD_MARGIN),
+                      );
+                      reviewsScrollRef.current?.scrollTo({
+                        x: newX,
+                        animated: true,
+                      });
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons
+                      name="chevron-forward"
+                      size={22}
+                      color={colors.text}
+                    />
+                  </TouchableOpacity>
                 </View>
-              ))
+
+                {/* dots */}
+                <View style={styles.dotsRow}>
+                  {Array.from({ length: dotsCount }).map((_, i) => {
+                    const active = i === clamp(pageIndex, 0, dotsCount - 1);
+                    return (
+                      <View
+                        key={`dot-${i}`}
+                        style={[styles.dot, active && styles.dotActive]}
+                      />
+                    );
+                  })}
+                </View>
+              </>
             ) : (
-              <Text style={styles.noReviewsText}>No reviews yet</Text>
+              <View style={styles.emptyBox}>
+                <Ionicons
+                  name="chatbubbles-outline"
+                  size={26}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.emptyTitle}>No reviews yet</Text>
+                <Text style={styles.emptySubtitle}>
+                  Be the first to leave feedback
+                </Text>
+              </View>
             )}
           </View>
+
+          {/* Vendor */}
+          {vendor ? (
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>Venue owner</Text>
+              </View>
+
+              <View style={styles.row}>
+                <Text style={styles.rowLabel}>Business</Text>
+                <Text style={styles.rowValue}>
+                  {vendor.business_name || "—"}
+                </Text>
+              </View>
+
+              <View style={styles.row}>
+                <Text style={styles.rowLabel}>Owner</Text>
+                <Text style={styles.rowValue}>
+                  {vendor.vendor_full_name || "—"}
+                </Text>
+              </View>
+
+              {vendor.vendor_phone_number ? (
+                <TouchableOpacity
+                  style={styles.row}
+                  onPress={() =>
+                    Linking.openURL(`tel:${vendor.vendor_phone_number}`)
+                  }
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.rowLabel}>Phone</Text>
+                  <View style={styles.rowRight}>
+                    <Text style={[styles.rowValue, styles.linkText]}>
+                      {vendor.vendor_phone_number}
+                    </Text>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={16}
+                      color={colors.textSecondary}
+                    />
+                  </View>
+                </TouchableOpacity>
+              ) : null}
+
+              {vendor.vendor_email ? (
+                <TouchableOpacity
+                  style={[styles.row, styles.rowLast]}
+                  onPress={() =>
+                    Linking.openURL(`mailto:${vendor.vendor_email}`)
+                  }
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.rowLabel}>Email</Text>
+                  <View style={styles.rowRight}>
+                    <Text
+                      style={[styles.rowValue, styles.linkText]}
+                      numberOfLines={1}
+                    >
+                      {vendor.vendor_email}
+                    </Text>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={16}
+                      color={colors.textSecondary}
+                    />
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.rowLast} />
+              )}
+            </View>
+          ) : null}
+
+          {/* spacer for bottom CTA */}
+          <View style={{ height: 90 }} />
         </View>
       </ScrollView>
 
-      {/* Bottom CTA Button */}
-      <View style={styles.bottomButtonContainer}>
-        <TouchableOpacity
-          style={styles.bookNowButton}
-          onPress={() => setShowBookingModal(true)}
-        >
-          <Text style={styles.bookNowButtonText}>Book now</Text>
-        </TouchableOpacity>
+      {/* Bottom glass CTA */}
+      <View style={styles.bottomBar}>
+        <BlurView intensity={20} tint="light" style={styles.bottomBarBlur}>
+          <View style={styles.bottomInner}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.bottomTitle} numberOfLines={1}>
+                {placeName}
+              </Text>
+              <Text style={styles.bottomSub} numberOfLines={1}>
+                Tap to book instantly
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.ctaBtn}
+              onPress={() => setShowBookingModal(true)}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.ctaText}>Book now</Text>
+              <Ionicons name="arrow-forward" size={18} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </BlurView>
       </View>
 
-      {/* Booking Modal */}
       <BookingModal
         visible={showBookingModal}
         onClose={() => setShowBookingModal(false)}
         placeDetails={placeDetails}
+        vendor={vendor}
       />
+
+      {/* Add Review Modal */}
+      <Modal
+        visible={showAddReviewModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAddReviewModal(false)}
+      >
+        <View style={styles.addReviewOverlay}>
+          <View style={styles.addReviewModal}>
+            <View style={styles.addReviewHeader}>
+              <Text style={styles.addReviewTitle}>Write a review</Text>
+              <TouchableOpacity
+                onPress={() => setShowAddReviewModal(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.addReviewLabel}>Rating</Text>
+            <View style={styles.starRow}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity
+                  key={star}
+                  onPress={() => setAddReviewRating(star)}
+                  style={styles.starBtn}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name={addReviewRating >= star ? "star" : "star-outline"}
+                    size={32}
+                    color={colors.accent}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.addReviewLabel}>Your review</Text>
+            <TextInput
+              style={styles.addReviewInput}
+              placeholder="Share your experience..."
+              placeholderTextColor={colors.textSecondary}
+              value={addReviewText}
+              onChangeText={setAddReviewText}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              maxLength={500}
+            />
+            <Text style={styles.addReviewCharCount}>
+              {addReviewText.length}/500
+            </Text>
+
+            <TouchableOpacity
+              style={[
+                styles.addReviewSubmit,
+                submittingReview && styles.addReviewSubmitDisabled,
+              ]}
+              onPress={handleSubmitReview}
+              disabled={submittingReview}
+              activeOpacity={0.9}
+            >
+              {submittingReview ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.addReviewSubmitText}>Submit review</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1, backgroundColor: colors.background },
+
+  // Loading / error state
+  stateCenter: {
     flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 100,
-  },
-  heroImageContainer: {
-    width: "100%",
-    height: height * 0.4,
-    position: "relative",
-  },
-  heroImage: {
-    width: "100%",
-    height: "100%",
-  },
-  imageGradientOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 300, // Increased height for better gradient blend
-  },
-  header: {
-    position: "absolute",
-    top: Platform.OS === "ios" ? 70 : 50,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    zIndex: 10,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.badgeBackground,
     justifyContent: "center",
-    alignItems: "center",
+    paddingHorizontal: 22,
   },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  heartBlurContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: colors.badgeBackground,
-    overflow: "hidden",
-  },
-  heartIconContainer: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  titleOverlay: {
-    position: "absolute",
-    bottom: 0, // Positioned at the bottom
-    left: 0,
-    right: 0,
-    padding: 20,
-    paddingTop: 40, // More space from image
-    paddingBottom: 0,
-    zIndex: 5,
-  },
-  title: {
-    fontSize: 32,
-    fontFamily: fonts.regular,
-    fontWeight: "700",
-    color: colors.text,
-    marginBottom: 0,
-  },
-  locationInfoRow: {
-    paddingBottom: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  location: {
-    fontSize: 16,
-    fontFamily: fonts.regular,
-    color: colors.text,
-    marginLeft: 6,
-    marginRight: 16,
-  },
-  ratingLikesRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  ratingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  ratingText: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: colors.text,
-    marginLeft: 4,
-    fontWeight: "500",
-  },
-  likesContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  likesText: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: colors.text,
-    marginLeft: 4,
-    fontWeight: "500",
-  },
-  content: {
-    padding: 20,
-    backgroundColor: colors.background,
-  },
-  badgeButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.accent,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    alignSelf: "flex-start",
-    marginBottom: 20,
-  },
-  badgeText: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    fontWeight: "600",
-    color: "#fff",
-    marginLeft: 6,
-  },
-  descriptionSection: {
-    marginBottom: 24,
-  },
-  description: {
-    fontSize: 16,
-    fontFamily: fonts.regular,
-    color: colors.text,
-    lineHeight: 24,
-  },
-  settingsCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    marginBottom: 20,
-    // Only apply overflow hidden on Android to maintain rounded corners
-    // On iOS, we need overflow visible for shadows to show
-    ...(Platform.OS === "android" && {
-      overflow: "hidden",
-    }),
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  settingsCardTitle: {
+  stateTitle: {
+    marginTop: 14,
     fontSize: 18,
-    fontFamily: fonts.regular,
     fontFamily: fonts.semiBold,
     color: colors.text,
-    padding: 20,
-    paddingBottom: 3,
+    textAlign: "center",
   },
-  settingsCardContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 8,
+  stateSubtitle: {
+    marginTop: 6,
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: colors.textSecondary,
+    textAlign: "center",
   },
-  settingsRow: {
+  primaryBtn: {
+    marginTop: 16,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  primaryBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontFamily: fonts.semiBold,
+  },
+  ghostBtn: { marginTop: 10, padding: 10 },
+  ghostBtnText: {
+    fontSize: 13,
+    fontFamily: fonts.semiBold,
+    color: colors.textSecondary,
+  },
+
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 0 },
+
+  // Hero
+  hero: {
+    width: "100%",
+    height: height * 0.44,
+    position: "relative",
+    backgroundColor: colors.surface,
+  },
+  heroImg: { width: "100%", height: "100%" },
+  heroShade: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 140,
+  },
+  heroBottomFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 220,
+  },
+  heroTopBar: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 58 : 44,
+    left: 16,
+    right: 16,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 16,
+    justifyContent: "space-between",
+    zIndex: 10,
+  },
+  heroTopRight: { flexDirection: "row", gap: 10 },
+  circleBtn: { width: 44, height: 44, borderRadius: 22, overflow: "hidden" },
+  circleBtnBlur: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 22,
+  },
+
+  heroMeta: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 18,
+    zIndex: 8,
+  },
+  heroChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 10,
+  },
+  heroChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: "rgba(255, 255, 255, 0.62)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  heroChipText: { fontSize: 12, fontFamily: fonts.semiBold, color: "#000" },
+  heroTitle: {
+    fontSize: 28,
+    fontFamily: fonts.bold,
+    color: "#fff",
+    letterSpacing: -0.3,
+    marginBottom: 10,
+  },
+  heroStatsRow: { flexDirection: "row", alignItems: "center" },
+  heroStat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    maxWidth: "46%",
+  },
+  heroStatText: { fontSize: 12.5, fontFamily: fonts.semiBold, color: "#fff" },
+  heroStatDivider: {
+    width: 1,
+    height: 14,
+    backgroundColor: "rgba(255,255,255,0.28)",
+    marginHorizontal: 10,
+  },
+
+  // Body
+  body: { paddingHorizontal: 16, paddingTop: 14 },
+
+  quickRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
+  quickBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 5 },
+      },
+      android: { elevation: 2 },
+    }),
+  },
+  quickBtnText: {
+    fontSize: 13,
+    fontFamily: fonts.semiBold,
+    color: colors.primary,
+  },
+
+  section: { marginBottom: 14 },
+  sectionTitle: {
+    fontSize: 18,
+    fontFamily: fonts.bold,
+    color: colors.text,
+    letterSpacing: -0.2,
+    marginBottom: 8,
+  },
+  sectionText: {
+    fontSize: 15.5,
+    fontFamily: fonts.regular,
+    color: colors.text,
+    lineHeight: 22,
+  },
+
+  // Cards
+  card: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+    marginBottom: 14,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.06,
+        shadowRadius: 14,
+        shadowOffset: { width: 0, height: 6 },
+      },
+      android: { elevation: 2 },
+    }),
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontFamily: fonts.bold,
+    color: colors.text,
+    letterSpacing: -0.15,
+  },
+
+  // Rows
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  settingsRowLast: {
-    borderBottomWidth: 0,
-  },
-  settingsRowToday: {
+  rowLast: { borderBottomWidth: 0 },
+  rowToday: {
     backgroundColor: colors.todayRow,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    marginHorizontal: -12,
     borderBottomWidth: 0,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginTop: 4,
   },
-  settingsRowLabel: {
-    fontSize: 16,
-    fontFamily: fonts.regular,
-    fontWeight: "500",
+  rowLabel: {
+    fontSize: 14,
+    fontFamily: fonts.semiBold,
     color: colors.text,
     flex: 1,
   },
-  settingsRowLabelToday: {
-    fontFamily: fonts.semiBold,
-  },
-  settingsRowValue: {
-    fontSize: 16,
+  rowLabelToday: { fontFamily: fonts.bold },
+  rowValue: {
+    fontSize: 14,
     fontFamily: fonts.regular,
     color: colors.textSecondary,
-    fontWeight: "400",
     textAlign: "right",
+    maxWidth: "62%",
   },
-  settingsRowValueToday: {
-    fontFamily: fonts.semiBold,
-    color: colors.text,
-  },
-  settingsRowRight: {
+  rowValueToday: { fontFamily: fonts.semiBold, color: colors.text },
+  rowRight: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
     flex: 1,
     justifyContent: "flex-end",
   },
-  chevron: {
-    marginLeft: 8,
-  },
-  websiteText: {
-    maxWidth: 200,
-  },
-  settingsRowValueContainer: {
-    // flex: 1,
-    // alignItems: "flex-end",
-  },
-  reviewsHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  reviewsTitle: {
-    fontSize: 20,
-    fontFamily: fonts.regular,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  discoverButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  discoverButtonText: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  reviewsList: {
-    marginBottom: 20,
-  },
-  reviewCard: {
-    backgroundColor: "#2A2A3E", // Dark gray
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  reviewText: {
-    fontSize: 15,
-    fontFamily: fonts.regular,
-    color: "#fff",
-    lineHeight: 22,
-    marginBottom: 12,
-    opacity: 0.9,
-  },
-  reviewFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  reviewUser: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  reviewAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 10,
-  },
-  reviewUserName: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  reviewRating: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  reviewRatingText: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: colors.text,
-    marginLeft: 4,
-    fontWeight: "500",
-  },
-  noReviewsText: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: colors.textSecondary,
-    textAlign: "center",
-    paddingVertical: 20,
-  },
-  bottomButtonContainer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 20,
-    paddingBottom: Platform.OS === "ios" ? 40 : 20,
-    backgroundColor: colors.cardBackground,
-  },
-  bookNowButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bookNowButtonText: {
-    fontSize: 16,
-    fontFamily: fonts.regular,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  amenitiesList: {
+  linkText: { color: colors.primary },
+
+  // Amenities
+  amenitiesWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "flex-end",
-    maxWidth: 200,
+    gap: 8,
+    maxWidth: "70%",
   },
-  amenityChip: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: "#666",
-    backgroundColor: "#E0E0E0",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 6,
-    marginBottom: 4,
+  amenityPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
+  amenityMore: {
+    backgroundColor: colors.primary + "14",
+    borderColor: colors.primary + "28",
+  },
+  amenityPillText: {
+    fontSize: 12.5,
+    fontFamily: fonts.semiBold,
+    color: colors.textSecondary,
+  },
+
+  // Reviews
+  reviewsHeader: {
+    marginTop: 4,
+    marginBottom: 10,
+    flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.cardBackground,
-    paddingTop: 100,
+    justifyContent: "space-between",
   },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
+  smallPrimary: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  smallPrimaryText: {
+    color: "#fff",
+    fontSize: 12.5,
+    fontFamily: fonts.semiBold,
+  },
+
+  reviewsWrap: { marginBottom: 14 },
+  carouselShell: { position: "relative", minHeight: 200 },
+  carouselContent: { paddingVertical: 8 },
+
+  reviewCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.05,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
+      },
+      android: { elevation: 2 },
+    }),
+  },
+  reviewTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  reviewUser: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  userName: { fontSize: 15, fontFamily: fonts.semiBold, color: colors.text },
+  userRole: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  iconPill: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewText: {
+    fontSize: 14.5,
+    fontFamily: fonts.regular,
+    color: colors.textSecondary,
+    lineHeight: 21,
+    marginBottom: 12,
+  },
+  reviewBottom: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  stars: { flexDirection: "row", alignItems: "center" },
+  ratingPill: {
+    fontSize: 12.5,
+    fontFamily: fonts.bold,
+    color: colors.text,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+
+  arrow: {
+    position: "absolute",
+    top: "50%",
+    marginTop: -ARROW_SIZE / 2,
+    width: ARROW_SIZE,
+    height: ARROW_SIZE,
+    borderRadius: ARROW_SIZE / 2,
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 5 },
+      },
+      android: { elevation: 3 },
+    }),
+    zIndex: 10,
+  },
+  arrowLeft: { left: 0 },
+  arrowRight: { right: 0 },
+
+  dotsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 8,
+  },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.border },
+  dotActive: { width: 18, backgroundColor: colors.primary },
+
+  emptyBox: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 18,
+    alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.04,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
+      },
+      android: { elevation: 1 },
+    }),
+  },
+  emptyTitle: {
+    marginTop: 10,
+    fontSize: 15,
+    fontFamily: fonts.semiBold,
+    color: colors.text,
+  },
+  emptySubtitle: {
+    marginTop: 4,
+    fontSize: 12.5,
     fontFamily: fonts.regular,
     color: colors.textSecondary,
   },
-  errorContainer: {
+
+  // Bottom bar
+  bottomBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  bottomBarBlur: {
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === "ios" ? 28 : 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
+    overflow: "hidden",
+  },
+  bottomInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  bottomTitle: { fontSize: 14, fontFamily: fonts.semiBold, color: colors.text },
+  bottomSub: {
+    marginTop: 3,
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: colors.textSecondary,
+  },
+
+  ctaBtn: {
+    height: 48,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  ctaText: { fontSize: 14, fontFamily: fonts.semiBold, color: "#fff" },
+
+  // Add Review Modal
+  addReviewOverlay: {
     flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
+    padding: 20,
+  },
+  addReviewModal: {
+    width: "100%",
+    maxWidth: 400,
     backgroundColor: colors.cardBackground,
-    paddingTop: 100,
-    paddingHorizontal: 20,
+    borderRadius: 20,
+    padding: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.2,
+        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 10 },
+      },
+      android: { elevation: 8 },
+    }),
   },
-  errorText: {
-    fontSize: 16,
-    fontFamily: fonts.regular,
-    color: colors.error,
+  addReviewHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 20,
-    textAlign: "center",
   },
-  retryButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+  addReviewTitle: {
+    fontSize: 20,
+    fontFamily: fonts.semiBold,
+    color: colors.text,
   },
-  retryButtonText: {
-    color: "#fff",
+  addReviewLabel: {
+    fontSize: 14,
+    fontFamily: fonts.semiBold,
+    color: colors.text,
+    marginBottom: 10,
+  },
+  starRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 20,
+  },
+  starBtn: {
+    padding: 4,
+  },
+  addReviewInput: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     fontSize: 16,
     fontFamily: fonts.regular,
-    fontWeight: "600",
+    color: colors.text,
+    minHeight: 100,
+  },
+  addReviewCharCount: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: colors.textSecondary,
+    marginTop: 6,
+    marginBottom: 16,
+  },
+  addReviewSubmit: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 48,
+  },
+  addReviewSubmitDisabled: {
+    opacity: 0.7,
+  },
+  addReviewSubmitText: {
+    fontSize: 16,
+    fontFamily: fonts.semiBold,
+    color: "#fff",
   },
 });
 

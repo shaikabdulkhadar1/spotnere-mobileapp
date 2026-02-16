@@ -9,6 +9,8 @@ import {
   Dimensions,
   TextInput,
   ScrollView,
+  Linking,
+  Alert,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,7 +19,7 @@ import { fonts } from "../constants/fonts";
 
 const { width, height } = Dimensions.get("window");
 
-const BookingModal = ({ visible, onClose, placeDetails }) => {
+const BookingModal = ({ visible, onClose, placeDetails, vendor }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
@@ -121,6 +123,81 @@ const BookingModal = ({ visible, onClose, placeDetails }) => {
   const days = getDaysInMonth(currentMonth);
   const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const bookingTotal = calculateTotal();
+
+  const handlePayAndBook = () => {
+    if (!selectedDate || !selectedTimeSlot || !guests) {
+      Alert.alert(
+        "Incomplete Booking",
+        "Please select date, time slot, and number of guests.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
+    const total = bookingTotal.total;
+    if (total <= 0) {
+      Alert.alert("Invalid Amount", "Please check your booking details.", [
+        { text: "OK" },
+      ]);
+      return;
+    }
+
+    const upiId = vendor?.upi_id?.trim();
+    if (!upiId) {
+      Alert.alert(
+        "Payment Unavailable",
+        "This venue has not set up UPI payments yet. Please contact the venue directly.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
+    const payeeName =
+      vendor?.business_name || placeDetails?.name || "Venue Owner";
+    const amount = total.toFixed(2);
+
+    const buildUpiUrl = (scheme) => {
+      const params = new URLSearchParams({
+        pa: upiId,
+        pn: payeeName,
+        am: amount,
+        cu: "INR",
+        tn: `Booking - ${placeDetails?.name || placeDetails?.title || "Place"}`,
+      });
+      return `${scheme}://pay?${params.toString()}`;
+    };
+
+    const openPaymentApp = async (scheme) => {
+      const url = buildUpiUrl(scheme);
+      const genericUpiUrl = buildUpiUrl("upi");
+      try {
+        await Linking.openURL(url);
+      } catch (err) {
+        console.warn(`Could not open ${scheme}:`, err);
+        try {
+          await Linking.openURL(genericUpiUrl);
+        } catch (fallbackErr) {
+          Alert.alert(
+            "Payment Failed",
+            "Could not open payment app. Please ensure PhonePe or Google Pay is installed.",
+            [{ text: "OK" }]
+          );
+        }
+      }
+    };
+
+    Alert.alert("Choose Payment App", "Pay via PhonePe or Google Pay", [
+      {
+        text: "PhonePe",
+        onPress: () => openPaymentApp("phonepe"),
+      },
+      {
+        text: "Google Pay",
+        onPress: () => openPaymentApp("gpay"),
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
 
   const BlurContainer = Platform.OS === "ios" ? BlurView : View;
   const blurProps =
@@ -339,15 +416,7 @@ const BookingModal = ({ visible, onClose, placeDetails }) => {
 
               <TouchableOpacity
                 style={styles.payButton}
-                onPress={() => {
-                  // TODO: Implement payment and booking logic
-                  console.log("Pay and Book pressed", {
-                    date: selectedDate,
-                    timeSlot: selectedTimeSlot,
-                    guests: guests,
-                    total: bookingTotal.total,
-                  });
-                }}
+                onPress={handlePayAndBook}
                 activeOpacity={0.8}
               >
                 <View style={styles.payButtonContent}>

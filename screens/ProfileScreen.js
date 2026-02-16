@@ -169,7 +169,7 @@ const ProfileScreen = ({ onLoginSuccess, onBack }) => {
         Alert.alert(
           "Language",
           "The app is only available in English for now.",
-          [{ text: "OK" }]
+          [{ text: "OK" }],
         );
         break;
       case "theme":
@@ -390,7 +390,7 @@ const ProfileScreen = ({ onLoginSuccess, onBack }) => {
               <Text style={styles.avatarText}>
                 {getInitials(
                   userData?.firstName || "",
-                  userData?.lastName || ""
+                  userData?.lastName || "",
                 )}
               </Text>
             </View>
@@ -407,7 +407,7 @@ const ProfileScreen = ({ onLoginSuccess, onBack }) => {
         <Text style={styles.sectionTitle}>Bookings</Text>
         <View style={styles.menuCard}>
           {bookingsItems.map((item, index) =>
-            renderMenuItem(item, index, bookingsItems.length)
+            renderMenuItem(item, index, bookingsItems.length),
           )}
         </View>
       </View>
@@ -417,7 +417,7 @@ const ProfileScreen = ({ onLoginSuccess, onBack }) => {
         <Text style={styles.sectionTitle}>Account</Text>
         <View style={styles.menuCard}>
           {accountItems.map((item, index) =>
-            renderMenuItem(item, index, accountItems.length)
+            renderMenuItem(item, index, accountItems.length),
           )}
         </View>
       </View>
@@ -427,7 +427,7 @@ const ProfileScreen = ({ onLoginSuccess, onBack }) => {
         <Text style={styles.sectionTitle}>Preferences</Text>
         <View style={styles.menuCard}>
           {preferencesItems.map((item, index) =>
-            renderMenuItem(item, index, preferencesItems.length)
+            renderMenuItem(item, index, preferencesItems.length),
           )}
         </View>
       </View>
@@ -437,7 +437,7 @@ const ProfileScreen = ({ onLoginSuccess, onBack }) => {
         <Text style={styles.sectionTitle}>Support</Text>
         <View style={styles.menuCard}>
           {supportItems.map((item, index) =>
-            renderMenuItem(item, index, supportItems.length)
+            renderMenuItem(item, index, supportItems.length),
           )}
         </View>
       </View>
@@ -655,6 +655,8 @@ const styles = StyleSheet.create({
   },
   profileCard: {
     backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
     borderRadius: 12,
     marginBottom: 24,
     padding: 16,
@@ -708,6 +710,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 12,
     overflow: "hidden",
+    borderColor: colors.border,
+    borderWidth: 1,
   },
   menuItem: {
     flexDirection: "row",
