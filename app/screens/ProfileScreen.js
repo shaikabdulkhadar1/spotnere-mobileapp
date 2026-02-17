@@ -19,11 +19,15 @@ import ManageProfileScreen from "./ManageProfileScreen";
 import PasswordSecurityScreen from "./PasswordSecurityScreen";
 import AboutUsScreen from "./AboutUsScreen";
 import HelpCenterScreen from "./HelpCenterScreen";
+import UpcomingBookingsScreen from "./UpcomingBookingsScreen";
+import PastBookingsScreen from "./PastBookingsScreen";
 import { getCurrentUser, logout } from "../utils/auth";
+import { useBookings } from "../context/BookingsContext";
 
 const { width } = Dimensions.get("window");
 
-const ProfileScreen = ({ onLoginSuccess, onBack }) => {
+const ProfileScreen = ({ onLoginSuccess, onBack, onTripPress }) => {
+  const { refreshBookings, clearBookings } = useBookings();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userData, setUserData] = useState(null);
   const [showLoginForm, setShowLoginForm] = useState(false);
@@ -34,6 +38,8 @@ const ProfileScreen = ({ onLoginSuccess, onBack }) => {
   const [showHelpCenter, setShowHelpCenter] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState("Light");
+  const [showUpcomingBookings, setShowUpcomingBookings] = useState(false);
+  const [showPastBookings, setShowPastBookings] = useState(false);
 
   useEffect(() => {
     checkAuthStatus();
@@ -55,6 +61,7 @@ const ProfileScreen = ({ onLoginSuccess, onBack }) => {
     setIsLoggedIn(true);
     setUserData(userData);
     setShowLoginForm(false);
+    await refreshBookings();
     if (onLoginSuccess) {
       onLoginSuccess(userData);
     }
@@ -65,6 +72,7 @@ const ProfileScreen = ({ onLoginSuccess, onBack }) => {
     setIsLoggedIn(true);
     setUserData(userData);
     setShowRegisterForm(false);
+    await refreshBookings();
     if (onLoginSuccess) {
       onLoginSuccess(userData);
     }
@@ -72,6 +80,7 @@ const ProfileScreen = ({ onLoginSuccess, onBack }) => {
 
   const handleLogout = async () => {
     await logout();
+    await clearBookings();
     setIsLoggedIn(false);
     setUserData(null);
     setShowLoginForm(false);
@@ -181,6 +190,12 @@ const ProfileScreen = ({ onLoginSuccess, onBack }) => {
       case "help-center":
         setShowHelpCenter(true);
         break;
+      case "upcoming-bookings":
+        setShowUpcomingBookings(true);
+        break;
+      case "past-bookings":
+        setShowPastBookings(true);
+        break;
       default:
         console.log(`Menu item clicked: ${itemId}`);
     }
@@ -208,6 +223,26 @@ const ProfileScreen = ({ onLoginSuccess, onBack }) => {
       <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
     </TouchableOpacity>
   );
+
+  // Show upcoming bookings screen
+  if (showUpcomingBookings) {
+    return (
+      <UpcomingBookingsScreen
+        onTripPress={onTripPress}
+        onBack={() => setShowUpcomingBookings(false)}
+      />
+    );
+  }
+
+  // Show past bookings screen
+  if (showPastBookings) {
+    return (
+      <PastBookingsScreen
+        onTripPress={onTripPress}
+        onBack={() => setShowPastBookings(false)}
+      />
+    );
+  }
 
   // Show help center screen
   if (showHelpCenter) {

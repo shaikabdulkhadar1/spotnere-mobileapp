@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -18,6 +18,7 @@ import Constants from "expo-constants";
 import { colors } from "../constants/colors";
 import { fonts } from "../constants/fonts";
 import { getCurrentUser } from "../utils/auth";
+import { useBookings } from "../context/BookingsContext";
 import { NativeModules } from "react-native";
 import RazorpayCheckout from "react-native-razorpay";
 
@@ -29,6 +30,7 @@ const API_BASE =
   "http://localhost:5001";
 
 const BookingModal = ({ visible, onClose, placeDetails, vendor }) => {
+  const { refreshBookings } = useBookings();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
@@ -36,6 +38,18 @@ const BookingModal = ({ visible, onClose, placeDetails, vendor }) => {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [paying, setPaying] = useState(false);
   const [showPaymentProcessing, setShowPaymentProcessing] = useState(false);
+  const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
+  const [showPaymentFailed, setShowPaymentFailed] = useState(false);
+  const [paymentFailedMessage, setPaymentFailedMessage] = useState("");
+  const [showPaymentCancelled, setShowPaymentCancelled] = useState(false);
+
+  useEffect(() => {
+    if (!visible) {
+      setShowPaymentSuccess(false);
+      setShowPaymentFailed(false);
+      setShowPaymentCancelled(false);
+    }
+  }, [visible]);
 
   // Available time slots
   const timeSlots = [
@@ -184,6 +198,8 @@ const BookingModal = ({ visible, onClose, placeDetails, vendor }) => {
       const timeStr = timeMap[selectedTimeSlot] || "10:00";
       const bookingDateTime = `${dateStr}T${timeStr}:00.000Z`;
 
+      const numberOfGuests = parseInt(guests, 10) || 0;
+
       const res = await fetch(`${API_BASE}/bookings/create-and-order`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -193,6 +209,7 @@ const BookingModal = ({ visible, onClose, placeDetails, vendor }) => {
           bookingDateTime,
           amountInr: total,
           currency: "INR",
+          number_of_guests: numberOfGuests,
         }),
       });
 
@@ -244,9 +261,7 @@ const BookingModal = ({ visible, onClose, placeDetails, vendor }) => {
           } catch (e) {
             console.warn("Failed to delete cancelled booking:", e);
           }
-          Alert.alert("Payment Cancelled", "Your booking has been cancelled.", [
-            { text: "OK" },
-          ]);
+          setShowPaymentCancelled(true);
           return;
         }
         const msg =
@@ -274,28 +289,25 @@ const BookingModal = ({ visible, onClose, placeDetails, vendor }) => {
 
       if (verifyRes.ok && verifyData.status === "SUCCESS") {
         setShowPaymentProcessing(false);
-        Alert.alert("Payment Successful", "Your booking is confirmed.", [
-          { text: "OK", onPress: () => onClose() },
-        ]);
+        await refreshBookings();
+        setShowPaymentSuccess(true);
       } else {
         setShowPaymentProcessing(false);
-        Alert.alert(
-          "Payment Failed",
+        setPaymentFailedMessage(
           verifyData.reason ||
             verifyData.error ||
             verifyData.details ||
             "Payment could not be completed.",
-          [{ text: "OK" }],
         );
+        setShowPaymentFailed(true);
       }
     } catch (err) {
       setShowPaymentProcessing(false);
       console.error("Create booking error:", err);
-      Alert.alert(
-        "Error",
+      setPaymentFailedMessage(
         err.message || "Failed to create booking. Please try again.",
-        [{ text: "OK" }],
       );
+      setShowPaymentFailed(true);
     } finally {
       setPaying(false);
     }
@@ -307,6 +319,20 @@ const BookingModal = ({ visible, onClose, placeDetails, vendor }) => {
       ? { intensity: 80 }
       : { backgroundColor: "rgba(0, 0, 0, 0.5)" };
 
+  const handleCloseSuccess = () => {
+    setShowPaymentSuccess(false);
+    onClose();
+  };
+
+  const handleCloseFailed = () => {
+    setShowPaymentFailed(false);
+    setPaymentFailedMessage("");
+  };
+
+  const handleCloseCancelled = () => {
+    setShowPaymentCancelled(false);
+  };
+
   return (
     <Modal
       visible={!!visible}
@@ -315,6 +341,68 @@ const BookingModal = ({ visible, onClose, placeDetails, vendor }) => {
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
+        {showPaymentSuccess ? (
+          <TouchableOpacity
+            style={styles.successOverlay}
+            activeOpacity={1}
+            onPress={handleCloseSuccess}
+          >
+            <View style={styles.successContent}>
+              <Ionicons name="checkmark-circle" size={64} color="#fff" />
+              <Text style={styles.successTitle}>Payment Successful</Text>
+              <Text style={styles.successSubtitle}>
+                Booking Confirmed. Check Trips for more details
+              </Text>
+              <TouchableOpacity
+                style={styles.successButton}
+                onPress={handleCloseSuccess}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.successButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        ) : showPaymentFailed ? (
+          <TouchableOpacity
+            style={styles.failedOverlay}
+            activeOpacity={1}
+            onPress={handleCloseFailed}
+          >
+            <View style={styles.failedContent}>
+              <Ionicons name="close-circle" size={64} color="#fff" />
+              <Text style={styles.failedTitle}>Payment Failed</Text>
+              <Text style={styles.failedSubtitle}>{paymentFailedMessage}</Text>
+              <TouchableOpacity
+                style={styles.failedButton}
+                onPress={handleCloseFailed}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.failedButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        ) : showPaymentCancelled ? (
+          <TouchableOpacity
+            style={styles.cancelledOverlay}
+            activeOpacity={1}
+            onPress={handleCloseCancelled}
+          >
+            <View style={styles.cancelledContent}>
+              <Ionicons name="close-circle-outline" size={64} color="#fff" />
+              <Text style={styles.cancelledTitle}>Payment Cancelled</Text>
+              <Text style={styles.cancelledSubtitle}>
+                Your booking has been cancelled.
+              </Text>
+              <TouchableOpacity
+                style={styles.cancelledButton}
+                onPress={handleCloseCancelled}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.cancelledButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        ) : (
         <BlurContainer {...blurProps} style={styles.blurOverlay}>
           <View style={styles.modalContainer}>
             {/* Header */}
@@ -538,6 +626,7 @@ const BookingModal = ({ visible, onClose, placeDetails, vendor }) => {
             </View>
           </View>
         </BlurContainer>
+        )}
       </View>
 
       {/* Payment Processing Overlay */}
@@ -635,6 +724,117 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     justifyContent: "flex-end",
+  },
+  successOverlay: {
+    flex: 1,
+    backgroundColor: colors.success || "#1E8E3E",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  successContent: {
+    alignItems: "center",
+    paddingHorizontal: 32,
+  },
+  successTitle: {
+    fontSize: 24,
+    fontFamily: fonts.bold,
+    color: "#fff",
+    marginTop: 16,
+    textAlign: "center",
+  },
+  successSubtitle: {
+    fontSize: 16,
+    fontFamily: fonts.regular,
+    color: "rgba(255,255,255,0.95)",
+    marginTop: 12,
+    textAlign: "center",
+    lineHeight: 24,
+  },
+  successButton: {
+    marginTop: 32,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    borderRadius: 12,
+  },
+  successButtonText: {
+    fontSize: 16,
+    fontFamily: fonts.semiBold,
+    color: "#fff",
+  },
+  failedOverlay: {
+    flex: 1,
+    backgroundColor: colors.error || "#D93025",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  failedContent: {
+    alignItems: "center",
+    paddingHorizontal: 32,
+  },
+  failedTitle: {
+    fontSize: 24,
+    fontFamily: fonts.bold,
+    color: "#fff",
+    marginTop: 16,
+    textAlign: "center",
+  },
+  failedSubtitle: {
+    fontSize: 16,
+    fontFamily: fonts.regular,
+    color: "rgba(255,255,255,0.95)",
+    marginTop: 12,
+    textAlign: "center",
+    lineHeight: 24,
+  },
+  failedButton: {
+    marginTop: 32,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    borderRadius: 12,
+  },
+  failedButtonText: {
+    fontSize: 16,
+    fontFamily: fonts.semiBold,
+    color: "#fff",
+  },
+  cancelledOverlay: {
+    flex: 1,
+    backgroundColor: colors.warning || "#F9AB00",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cancelledContent: {
+    alignItems: "center",
+    paddingHorizontal: 32,
+  },
+  cancelledTitle: {
+    fontSize: 24,
+    fontFamily: fonts.bold,
+    color: "#fff",
+    marginTop: 16,
+    textAlign: "center",
+  },
+  cancelledSubtitle: {
+    fontSize: 16,
+    fontFamily: fonts.regular,
+    color: "rgba(255,255,255,0.95)",
+    marginTop: 12,
+    textAlign: "center",
+    lineHeight: 24,
+  },
+  cancelledButton: {
+    marginTop: 32,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    borderRadius: 12,
+  },
+  cancelledButtonText: {
+    fontSize: 16,
+    fontFamily: fonts.semiBold,
+    color: "#fff",
   },
   blurOverlay: {
     flex: 1,

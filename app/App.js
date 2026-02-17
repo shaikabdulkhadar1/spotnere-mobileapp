@@ -30,7 +30,9 @@ import TripsScreen from "./screens/TripsScreen";
 import ReelsScreen from "./screens/ReelsScreen";
 import BottomNavBar from "./components/BottomNavBar";
 import PlaceDetailScreen from "./screens/PlaceDetailScreen";
+import BookingDetailScreen from "./screens/BookingDetailScreen";
 import ProfileScreen from "./screens/ProfileScreen";
+import { BookingsProvider } from "./context/BookingsContext";
 import { colors } from "./constants/colors";
 import { fonts } from "./constants/fonts";
 import { getCachedPlaces, setCachedPlaces } from "./utils/placesCache";
@@ -117,6 +119,7 @@ export default function App() {
   const [city, setCity] = useState("Your City"); // Will be updated from location
   const [activeTab, setActiveTab] = useState("home");
   const [selectedPlaceId, setSelectedPlaceId] = useState(null);
+  const [selectedBooking, setSelectedBooking] = useState(null);
   const [activeCategory, setActiveCategory] = useState("All");
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -159,19 +162,25 @@ export default function App() {
           return true;
         }
 
-        // 2. Close place detail if viewing
+        // 2. Close booking detail if viewing
+        if (selectedBooking) {
+          setSelectedBooking(null);
+          return true;
+        }
+
+        // 3. Close place detail if viewing
         if (selectedPlaceId) {
           setSelectedPlaceId(null);
           return true;
         }
 
-        // 3. Go back to home if on another tab
+        // 4. Go back to home if on another tab
         if (activeTab !== "home") {
           setActiveTab("home");
           return true;
         }
 
-        // 4. On home: "Press back again to exit"
+        // 5. On home: "Press back again to exit"
         const now = Date.now();
         if (now - lastBackPress.current < 2000) {
           BackHandler.exitApp();
@@ -186,6 +195,7 @@ export default function App() {
     return () => backHandler.remove();
   }, [
     showFilterModal,
+    selectedBooking,
     selectedPlaceId,
     activeTab,
     slideAnim,
@@ -434,11 +444,12 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      <BookingsProvider>
       <View style={styles.container}>
         <ExpoStatusBar style="light" />
 
-        {/* Top Section - Search Bar and Categories - Hidden on PlaceDetailScreen and shown only on Home tab */}
-        {!selectedPlaceId && activeTab === "home" && (
+        {/* Top Section - Search Bar and Categories - Hidden on detail screens and shown only on Home tab */}
+        {!selectedPlaceId && !selectedBooking && activeTab === "home" && (
           <View style={styles.topSection}>
             {/* Search Bar */}
             <View style={styles.searchBarWrapper}>
@@ -539,7 +550,16 @@ export default function App() {
           </View>
         )}
 
-        {selectedPlaceId ? (
+        {selectedBooking ? (
+          <BookingDetailScreen
+            booking={selectedBooking}
+            onClose={() => setSelectedBooking(null)}
+            onViewPlace={(placeId) => {
+              setSelectedBooking(null);
+              setSelectedPlaceId(placeId);
+            }}
+          />
+        ) : selectedPlaceId ? (
           <PlaceDetailScreen
             placeId={selectedPlaceId}
             onClose={() => setSelectedPlaceId(null)}
@@ -561,7 +581,7 @@ export default function App() {
             ) : activeTab === "trips" ? (
               <TripsScreen
                 userCountry={userCountry}
-                onPlacePress={setSelectedPlaceId}
+                onTripPress={setSelectedBooking}
                 onBack={() => setActiveTab("home")}
               />
             ) : activeTab === "reels" ? (
@@ -577,6 +597,7 @@ export default function App() {
                   console.log("User logged in:", userData);
                 }}
                 onBack={() => setActiveTab("home")}
+                onTripPress={setSelectedBooking}
               />
             ) : (
               <HomeScreen
@@ -1016,6 +1037,7 @@ export default function App() {
           </TouchableWithoutFeedback>
         </Modal>
       </View>
+      </BookingsProvider>
     </ErrorBoundary>
   );
 }

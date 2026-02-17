@@ -1,3 +1,8 @@
+/**
+ * PastBookingsScreen — Shows past bookings from Profile
+ * Uses TripCard, filters for past dates + paid/success status
+ */
+
 import React from "react";
 import {
   StyleSheet,
@@ -17,41 +22,31 @@ import { colors } from "../constants/colors";
 import { fonts } from "../constants/fonts";
 import { useBookings } from "../context/BookingsContext";
 
-const { width, height } = Dimensions.get("window");
+const { height } = Dimensions.get("window");
 
-const TripsScreen = ({ userCountry, onTripPress, onBack }) => {
+const PAID_STATUSES = ["PAID", "SUCCESS", "CONFIRMED"];
+
+const PastBookingsScreen = ({ onTripPress, onBack }) => {
   const { bookings, loading, error, hasUser, refreshBookings } = useBookings();
 
-  // Filter by country when userCountry is set (include bookings with no country)
-  const trips = userCountry
-    ? bookings.filter((b) => !b.country || b.country === userCountry)
-    : bookings;
+  const now = new Date().toISOString();
+  const past = bookings.filter(
+    (b) =>
+      b.bookingDateTime < now &&
+      PAID_STATUSES.includes((b.paymentStatus || "").toUpperCase())
+  );
 
   if (loading) {
     return (
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={onBack}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={onBack} activeOpacity={0.7}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Your Trips</Text>
-          <TouchableOpacity
-            style={styles.homeButton}
-            onPress={onBack}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="home" size={24} color={colors.text} />
-          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Past Bookings</Text>
+          <View style={styles.headerSpacer} />
         </View>
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-        >
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           <View style={styles.listContainer}>
             {Array.from({ length: 4 }).map((_, index) => (
               <View key={`skeleton-${index}`} style={styles.skeletonCard}>
@@ -67,23 +62,12 @@ const TripsScreen = ({ userCountry, onTripPress, onBack }) => {
   if (error) {
     return (
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={onBack}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={onBack} activeOpacity={0.7}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Your Trips</Text>
-          <TouchableOpacity
-            style={styles.homeButton}
-            onPress={onBack}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="home" size={24} color={colors.text} />
-          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Past Bookings</Text>
+          <View style={styles.headerSpacer} />
         </View>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Error: {error}</Text>
@@ -97,36 +81,23 @@ const TripsScreen = ({ userCountry, onTripPress, onBack }) => {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={onBack}
-          activeOpacity={0.7}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={onBack} activeOpacity={0.7}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Your Trips</Text>
-        <TouchableOpacity
-          style={styles.homeButton}
-          onPress={onBack}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="home" size={24} color={colors.text} />
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Past Bookings</Text>
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={
-          trips.length === 0
-            ? styles.scrollContentCentered
-            : styles.scrollContent
+          past.length === 0 ? styles.scrollContentCentered : styles.scrollContent
         }
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.allPlacesContainer}>
-          {trips.length === 0 ? (
+          {past.length === 0 ? (
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconContainer}>
                 <Image
@@ -136,18 +107,15 @@ const TripsScreen = ({ userCountry, onTripPress, onBack }) => {
                 />
               </View>
               <Text style={styles.emptyTitle}>
-                {hasUser ? "No trips yet" : "Log in to see your bookings"}
+                {hasUser ? "No past bookings" : "Log in to see your bookings"}
               </Text>
               <Text style={styles.emptyText}>
                 {hasUser
-                  ? "Start planning your next adventure and your trips will appear here"
-                  : "Sign in to view your booked trips and upcoming adventures"}
+                  ? "Your completed trips will appear here"
+                  : "Sign in to view your past bookings"}
               </Text>
               {hasUser && (
-                <TouchableOpacity
-                  onPress={refreshBookings}
-                  style={styles.refreshButton}
-                >
+                <TouchableOpacity onPress={refreshBookings} style={styles.refreshButton}>
                   <Ionicons name="refresh" size={20} color={colors.primary} />
                   <Text style={styles.refreshButtonText}>Refresh</Text>
                 </TouchableOpacity>
@@ -155,7 +123,7 @@ const TripsScreen = ({ userCountry, onTripPress, onBack }) => {
             </View>
           ) : (
             <View style={styles.listContainer}>
-              {trips.map((trip, index) => (
+              {past.map((trip, index) => (
                 <TripCard
                   key={trip.id || index}
                   trip={trip}
@@ -176,8 +144,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    paddingTop:
-      Platform.OS === "ios" ? 80 : (StatusBar.currentHeight || 0) + 50,
+    paddingTop: Platform.OS === "ios" ? 80 : (StatusBar.currentHeight || 0) + 50,
     paddingHorizontal: 20,
     flexDirection: "row",
     alignItems: "center",
@@ -189,9 +156,8 @@ const styles = StyleSheet.create({
     padding: 4,
     zIndex: 1,
   },
-  homeButton: {
-    padding: 4,
-    zIndex: 1,
+  headerSpacer: {
+    width: 40,
   },
   headerTitle: {
     fontSize: 24,
@@ -206,12 +172,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    paddingBottom: 70, // Extra padding to ensure content is visible above bottom nav
+    paddingBottom: 70,
   },
   scrollContentCentered: {
     flexGrow: 1,
     justifyContent: "center",
-    minHeight: height - 200, // Account for top bar and bottom nav
+    minHeight: height - 200,
   },
   allPlacesContainer: {
     paddingHorizontal: 16,
@@ -294,4 +260,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default TripsScreen;
+export default PastBookingsScreen;

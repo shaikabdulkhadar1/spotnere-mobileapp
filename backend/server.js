@@ -189,8 +189,7 @@ app.get("/health", (_, res) => res.json({ ok: true }));
  */
 app.post("/bookings/create-and-order", async (req, res) => {
   try {
-    const { userId, placeId, bookingDateTime, amountInr, currency } =
-      req.body;
+    const { userId, placeId, bookingDateTime, amountInr, currency, number_of_guests } = req.body;
 
     if (!userId || !placeId || !bookingDateTime) {
       return res.status(400).json({
@@ -208,17 +207,21 @@ app.post("/bookings/create-and-order", async (req, res) => {
     const bookingRefNumber = `SPT-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
     // 1) Create booking row (payment_status = PENDING)
+    const insertPayload = {
+      user_id: userId,
+      place_id: placeId,
+      booking_date_time: bookingDateTime,
+      booking_ref_number: bookingRefNumber,
+      amount_paid: Number(amountInr),
+      currency_paid: payCurrency,
+      payment_status: "PENDING",
+    };
+    if (number_of_guests != null && !isNaN(Number(number_of_guests))) {
+      insertPayload.number_of_guests = Number(number_of_guests);
+    }
     const { data: booking, error: insertError } = await supabaseAdmin
       .from("bookings")
-      .insert({
-        user_id: userId,
-        place_id: placeId,
-        booking_date_time: bookingDateTime,
-        booking_ref_number: bookingRefNumber,
-        amount_paid: Number(amountInr),
-        currency_paid: payCurrency,
-        payment_status: "PENDING",
-      })
+      .insert(insertPayload)
       .select("*")
       .single();
 
@@ -463,7 +466,9 @@ app.get("/payments/razorpay/status", async (req, res) => {
 const HOST = process.env.HOST || "0.0.0.0";
 
 const server = app.listen(PORT, HOST, () => {
-  console.log(`✅ Spotnere backend running on http://localhost:${PORT} (also http://192.168.x.x:${PORT} on network)`);
+  console.log(
+    `✅ Spotnere backend running on http://localhost:${PORT} (also http://192.168.x.x:${PORT} on network)`,
+  );
 });
 
 server.on("error", (err) => {
